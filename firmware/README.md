@@ -1,89 +1,70 @@
-# Firmware ESP32 — ECS IoT
+# Firmware ESP32 — calidad de agua
 
-Sketch de ejemplo para un ESP32 que publica telemetría hacia la plataforma
-ECS IoT y opcionalmente recibe comandos (gadget Botón/Slider), siguiendo el
-"Contrato MQTT" documentado en el `README.md` raíz del proyecto.
+Sketch `esp32_calidad_agua/` para el ESP32 que mide la calidad del agua y
+la publica por MQTT según el contrato del [README raíz](../README.md).
+
+- **pH: sensor real** (analógico) con calibración de 2 puntos.
+- Turbiedad, cloro libre, temperatura y oxígeno disuelto: **simulados** en
+  el propio ESP32 (cada uno se puede reemplazar por un sensor real
+  cambiando su `SIMULATE_*` a 0 y completando su función `read...()`).
+- El cloro simulado responde al **dosificador del PLC** y el pin
+  `ALARM_PIN` (LED integrado) se enciende con la **alarma del PLC**: así se
+  ve en la maqueta la interacción PLC → ESP32.
 
 ## Requisitos
 
-- [Arduino IDE](https://www.arduino.cc/en/software) 2.x con soporte para
-  placas ESP32 instalado (Boards Manager → `esp32` by Espressif Systems).
-- Librerías (Sketch → Include Library → Manage Libraries):
-  - **WiFiManager** (tzapu)
-  - **PubSubClient** (Nick O'Leary)
-  - **ArduinoJson** (Benoit Blanchon, v6.x)
+- Arduino IDE 2.x con placas ESP32 (Boards Manager → `esp32` by Espressif).
+- Librerías: **WiFiManager** (tzapu), **PubSubClient** (Nick O'Leary),
+  **ArduinoJson** (Benoit Blanchon, **v6.x**).
 
-## 1. Registra el dispositivo en la plataforma
+## Conexión de la sonda de pH (módulo PH-4502C)
 
-Antes de tocar el firmware, el `Device` debe existir en el backend (las
-lecturas de un dispositivo no registrado, o con token inválido, se
-descartan y quedan en cuarentena como `UnregisteredReading`):
+| Módulo | ESP32 |
+|---|---|
+| V+ | 5V (VIN) |
+| G | GND |
+| Po | GPIO 34 **a través de un divisor** (Po → 10 kΩ → GPIO34 → 20 kΩ → GND) |
 
-1. Entra al dashboard (ver sección "Cómo revisar la plataforma" abajo) e
-   inicia sesión.
-2. **Dispositivos → + Agregar sensor**, completa nombre, **ID del
-   dispositivo** (slug, ej. `subestacion-01`) y opcionalmente etiqueta/ubicación.
-3. Al guardar, la plataforma muestra la página de **aprovisionamiento** con
-   el **slug** y el **token** único de ese dispositivo. Cópialos.
+El módulo puede entregar hasta 5 V y el ADC del ESP32 admite 3.3 V: el
+divisor es obligatorio. Usa un pin ADC1 (32–39), que funciona con el WiFi
+encendido. Si usan el sensor de DFRobot (salida 0–3 V) se conecta directo.
 
-## 2. Configura el sketch
+## Configuración
 
 ```
-copy config.example.h esp32_ecs_iot\config.h
+copy esp32_calidad_agua\config.example.h esp32_calidad_agua\config.h
 ```
 
-Edita `esp32_ecs_iot/config.h`:
+En `config.h` completa:
 
-- `DEVICE_SLUG` / `DEVICE_TOKEN` — los del paso 1.
-- `MQTT_BROKER_HOST` / `MQTT_BROKER_PORT`:
-  - **Local (docker-compose):** la IP de la PC que corre Docker en tu red
-    local (el ESP32 es otro dispositivo en la LAN, así que `localhost` no
-    sirve) y el puerto `MOSQUITTO_HOST_PORT` de tu `.env`.
-  - **Railway (producción):** el host:puerto del **TCP Proxy** del servicio
-    `mosquitto` (Settings → Networking → TCP Proxy en Railway).
-- `MQTT_USERNAME` / `MQTT_PASSWORD` — igual que `MQTT_USERNAME`/`MQTT_PASSWORD`
-  de tu `.env`.
-- `SENSOR_VARIABLE`, `SENSOR_PIN`, `SENSOR_RAW_MIN/MAX`, `SENSOR_VALUE_MIN/MAX`
-  — calibra según el sensor real que conectes (telurómetro u otro
-  instrumental con salida analógica). Los valores por defecto son solo un
-  ejemplo para `resistencia_tierra`.
+- `DEVICE_SLUG` / `DEVICE_TOKEN`: los del dispositivo `esp32-calidad-01`
+  (Dispositivos → Aprovisionamiento, o la línea `#define DEVICE_TOKEN` que
+  imprime `seed_demo_data`).
+- `MQTT_BROKER_HOST` / `PORT`: IP del PC con Docker en tu red (no
+  `localhost`) y `MOSQUITTO_HOST_PORT`; o el TCP Proxy de Railway.
+- `MQTT_USERNAME` / `MQTT_PASSWORD` / `MQTT_TOPIC_PREFIX`: iguales al `.env`.
 
-`config.h` está en `.gitignore` (contiene el token del dispositivo) — no se
-sube al repo.
+`config.h` está en `.gitignore`: no se sube el token al repo.
 
-## 3. Flashea y prueba
+## Calibración del pH
 
-1. Selecciona tu placa ESP32 en Arduino IDE y el puerto correspondiente.
-2. Sube `esp32_ecs_iot.ino`.
-3. Abre el **Monitor Serie** (115200 baud). Al primer arranque (o si no
-   recuerda ninguna red), el ESP32 levanta un punto de acceso WiFi llamado
-   como `DEVICE_AP_TAG` — conéctate a él desde tu celular/PC y sigue el
-   portal cautivo para darle el SSID/contraseña de tu WiFi real (las
-   credenciales de red **no** se programan en el código ni las pide la
-   plataforma, se ingresan directo en el hardware, como indica el README raíz).
-4. Tras conectar, el sketch se conecta al broker MQTT y empieza a publicar
-   en `ecs/<slug>/<variable>` cada `PUBLISH_INTERVAL_MS`. Deberías ver la
-   gráfica llenarse en `/monitoring/` en unos segundos.
-5. Si agregaste un gadget **Botón** o **Slider** a la variable `relay`
-   (`COMMAND_VARIABLE`) desde `/monitoring/sensors/<id>/widget/`, al
-   accionarlo en el dashboard el ESP32 debería recibir el comando y prender/
-   apagar el pin `COMMAND_PIN` (LED integrado por defecto), y el dashboard
-   debe reflejar el estado confirmado.
+1. Flashea el sketch y abre el Monitor Serie (115200 baud).
+2. Sumerge la sonda en buffer **pH 7**, espera 1 min y anota el valor
+   `pH raw mV=...` → `PH_MV_AT_7`.
+3. Enjuaga, sumerge en buffer **pH 4** y anota → `PH_MV_AT_4`.
+4. Vuelve a flashear. El pH se calcula con la recta entre esos dos puntos.
 
-## Diagnóstico rápido
+## Primer arranque
 
-- **No aparecen lecturas:** revisa el Monitor Serie del ESP32 (¿conectó
-  WiFi? ¿conectó MQTT, o reintenta con `rc=...`?) y el Admin de Django
-  (`/admin/monitoring/unregisteredreading/`) — si el mensaje llegó pero con
-  slug o token incorrecto, aparecerá ahí con el motivo.
-- **`rc=5` o falla de conexión MQTT:** usuario/contraseña del broker
-  incorrectos (`MQTT_USERNAME`/`MQTT_PASSWORD` en `config.h` vs `.env`).
-- **El comando no llega:** confirma que el topic suscrito
-  (`ecs/<slug>/relay/set`, visible en el log de arranque) coincide
-  exactamente con el que usa la plataforma para ese sensor.
-- Puedes espiar el tráfico MQTT sin hardware con `mosquitto_sub` desde otra
-  terminal (con el cliente `mosquitto` instalado o el contenedor
-  `eclipse-mosquitto:2`):
-  ```
-  mosquitto_sub -h <broker-host> -p <puerto> -u ecs -P <MQTT_PASSWORD> -t "ecs/#" -v
-  ```
+Si `WIFI_SSID` está vacío, el ESP32 levanta el AP `DEVICE_AP_TAG`:
+conéctate desde el celular y elige la red WiFi en el portal. Luego conecta
+a MQTT y publica cada `PUBLISH_INTERVAL_MS` en
+`planta/esp32-calidad-01/<variable>`.
+
+## Diagnóstico
+
+- **No aparecen lecturas**: revisa el Monitor Serie (¿WiFi? ¿MQTT `rc=...`?)
+  y en el Admin `UnregisteredReading` (slug o token incorrecto).
+- **`rc=5`**: usuario/contraseña MQTT incorrectos.
+- **El pH marca 0 o 14 fijo**: revisa el divisor y la calibración.
+- Espiar el tráfico: `mosquitto_sub -h <broker> -p <puerto> -u planta -P <pass> -t "planta/#" -v`

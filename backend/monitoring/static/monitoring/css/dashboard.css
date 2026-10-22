@@ -11,8 +11,11 @@
   --status-good: #0ca30c;
   --status-critical: #d03b3b;
   --meter-track: #cde2fb;
-  --brand-primary: #1F2933;
-  --brand-accent: #F2A900;
+  --brand-primary: #0B3954;
+  --brand-accent: #1C8FD1;
+  --water: #4AA8E0;
+  --water-deep: #1C6FB0;
+  --status-warn: #c98a00;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,8 +30,11 @@
     --border: rgba(255, 255, 255, 0.10);
     --series-1: #3987e5;
     --meter-track: #184f95;
-    --brand-primary: #3A4A57;
-    --brand-accent: #FFC72C;
+    --brand-primary: #16507A;
+    --brand-accent: #4FB3F0;
+    --water: #2E86C9;
+    --water-deep: #4FB3F0;
+    --status-warn: #e5a50a;
   }
 }
 
@@ -254,7 +260,7 @@ h1 {
   font-weight: 500;
   color: var(--text-secondary);
   margin: 0 0 4px 0;
-  text-transform: capitalize;
+  text-transform: none;
 }
 
 .sensor-card h3 .unit {
@@ -857,4 +863,89 @@ h1 {
   font-size: 13px;
   overflow-x: auto;
   max-width: 640px;
+}
+
+
+/* ===================== Planta de agua potable ===================== */
+.page-subtitle { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; }
+.login-subtitle { margin: -4px 0 12px; color: var(--text-muted); font-size: 14px; }
+
+#dashboard-root { display: flex; flex-direction: column; gap: 16px; }
+
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.panel-header h2 { margin: 0; font-size: 16px; }
+.panel .hint { margin: 12px 0 0; font-size: 12px; color: var(--text-muted); }
+
+.verdict { font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 999px; background: var(--page-plane); color: var(--text-secondary); }
+.verdict-ok { background: color-mix(in srgb, var(--status-good) 15%, transparent); color: var(--status-good); }
+.verdict-bad { background: color-mix(in srgb, var(--status-critical) 15%, transparent); color: var(--status-critical); }
+
+.compliance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.compliance-item {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+  border-left: 4px solid var(--water);
+}
+.compliance-item.is-bad { border-left-color: var(--status-critical); }
+.compliance-label { font-size: 13px; color: var(--text-secondary); }
+.compliance-value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.compliance-value small { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+.compliance-range { font-size: 12px; color: var(--text-muted); }
+.compliance-item .chip { align-self: flex-start; }
+
+.chip {
+  display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px;
+  background: var(--page-plane); color: var(--text-muted); border: 1px solid var(--border);
+}
+.chip-small { font-size: 11px; padding: 1px 8px; margin-left: 4px; }
+.chip-small:empty { display: none; }
+.chip-ok { color: var(--status-good); border-color: color-mix(in srgb, var(--status-good) 40%, transparent); }
+.chip-bad { color: #fff; background: var(--status-critical); border-color: var(--status-critical); }
+.process-flags { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.process-diagram { width: 100%; height: auto; max-height: 300px; display: block; }
+.pd-box { fill: var(--page-plane); stroke: var(--baseline); stroke-width: 1.5; }
+.pd-label { font-size: 13px; font-weight: 600; fill: var(--text-primary); }
+.pd-sub { font-size: 11px; fill: var(--text-muted); }
+.pd-value { font-size: 22px; font-weight: 700; fill: var(--text-primary); }
+.pd-pipe { fill: none; stroke: var(--baseline); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.pd-pipe.flowing { stroke: var(--water); stroke-dasharray: 10 8; animation: pd-flow 0.8s linear infinite; }
+.pd-dose { stroke-width: 4; }
+@keyframes pd-flow { to { stroke-dashoffset: -18; } }
+.pd-equip { fill: var(--page-plane); stroke: var(--text-muted); stroke-width: 2; }
+.pd-equip-icon { fill: var(--text-muted); }
+[data-equip].on .pd-equip { fill: color-mix(in srgb, var(--status-good) 20%, transparent); stroke: var(--status-good); }
+[data-equip].on .pd-equip-icon { fill: var(--status-good); }
+.pd-stem { stroke: var(--text-muted); stroke-width: 2; fill: none; }
+.pd-tank { fill: none; stroke: var(--text-secondary); stroke-width: 2; }
+.pd-tank-bg { fill: var(--page-plane); }
+.pd-water { fill: var(--water); opacity: 0.55; transition: y 0.6s ease, height 0.6s ease; }
+
+.device-header-badges { display: inline-flex; gap: 6px; align-items: center; }
+.hw-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--brand-primary); color: #fff; letter-spacing: 0.02em; }
+.sensor-range { margin: 2px 0 6px; font-size: 12px; color: var(--text-muted); }
+.sensor-card.is-bad { border-color: var(--status-critical); }
+.meter-fill.meter-bad { background: var(--status-critical); }
+.meter-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+  .topbar nav { flex-wrap: wrap; gap: 10px 14px; }
+  .process-panel { overflow-x: auto; }
+  .process-diagram { min-width: 620px; }
+  main { padding: 16px; margin: 0; border-radius: 0; }
+  .device-grid { grid-template-columns: 1fr; }
+  .page-header { flex-wrap: wrap; gap: 12px; }
+}
+
+/* La alarma de planta encendida es roja, no verde. */
+.sensor-card[data-variable="alarma"] .led-dot.lit {
+  background: var(--status-critical);
+  box-shadow: 0 0 8px var(--status-critical);
 }

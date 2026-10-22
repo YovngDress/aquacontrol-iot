@@ -61,16 +61,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("POSTGRES_DB", default="ecs_iot"),
-        "USER": env("POSTGRES_USER", default="ecs_iot"),
-        "PASSWORD": env("POSTGRES_PASSWORD", default=""),
-        "HOST": env("POSTGRES_HOST", default="db"),
-        "PORT": env("POSTGRES_PORT", default="5432"),
+# DB_ENGINE=sqlite permite correr la plataforma sin PostgreSQL (ej. directo
+# en la Raspberry Pi o en un PC sin Docker). Por defecto: PostgreSQL.
+if env("DB_ENGINE", default="postgres") == "sqlite":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": env("SQLITE_PATH", default=str(BASE_DIR / "db.sqlite3")),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("POSTGRES_DB", default="ecs_iot"),
+            "USER": env("POSTGRES_USER", default="ecs_iot"),
+            "PASSWORD": env("POSTGRES_PASSWORD", default=""),
+            "HOST": env("POSTGRES_HOST", default="db"),
+            "PORT": env("POSTGRES_PORT", default="5432"),
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -80,7 +90,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "es"
-TIME_ZONE = "UTC"
+TIME_ZONE = "America/Santiago"
 USE_I18N = True
 USE_TZ = True
 
@@ -102,11 +112,11 @@ MQTT_BROKER_HOST = env("MQTT_BROKER_HOST", default="mosquitto")
 MQTT_BROKER_PORT = env.int("MQTT_BROKER_PORT", default=1883)
 MQTT_USERNAME = env("MQTT_USERNAME", default="")
 MQTT_PASSWORD = env("MQTT_PASSWORD", default="")
-MQTT_TOPIC_PREFIX = env("MQTT_TOPIC_PREFIX", default="ecs")
+MQTT_TOPIC_PREFIX = env("MQTT_TOPIC_PREFIX", default="planta")
 
-# --- Google Maps (geolocalización de dispositivos y puestas a tierra) ---
+# --- Google Maps (geolocalización de dispositivos e instalaciones) ---
 GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
 
 # --- Marca del sitio (usada como fallback en templates) ---
-SITE_NAME = "ECS IoT"
-SITE_OWNER = "Electrical Services Company Temuco"
+SITE_NAME = env("SITE_NAME", default="AquaControl IoT")
+SITE_OWNER = env("SITE_OWNER", default="Planta de agua potable")

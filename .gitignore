@@ -2,6 +2,7 @@
 .env
 mosquitto/config/passwd
 firmware/**/config.h
+raspberry/config.env
 
 # Python
 __pycache__/

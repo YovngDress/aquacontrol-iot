@@ -93,6 +93,9 @@ services:
         - action: rebuild
           path: ./backend/requirements.txt
 
+  # --- Simulación sin hardware (en la maqueta real, estos 3 corren en el ESP32 y la Raspberry Pi) ---
+
+  # Simula el ESP32 de calidad de agua (pH, turbiedad, cloro, temperatura, OD)
   simulator:
     build: ./simulator
     restart: unless-stopped
@@ -102,6 +105,28 @@ services:
     depends_on:
       mosquitto:
         condition: service_healthy
+
+  # PLC simulado (servidor Modbus TCP) — en la maqueta corre en la Raspberry Pi
+  plc_sim:
+    build: ./raspberry
+    restart: unless-stopped
+    command: python plc_simulado.py --port 5020
+
+  # Gateway Modbus TCP <-> MQTT — en la maqueta corre en la Raspberry Pi
+  gateway:
+    build: ./raspberry
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: 1883
+      PLC_HOST: plc_sim
+      PLC_PORT: 5020
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      plc_sim:
+        condition: service_started
 
 volumes:
   postgres_data:

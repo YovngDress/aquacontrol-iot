@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from . import plant
 from .forms import (
     DeviceRegistrationForm,
     ManualEntryForm,
@@ -53,6 +54,16 @@ def dashboard(request):
     context = {
         "devices": devices,
         "seed_data": seed_data,
+        "norm_name": plant.NORM_NAME,
+        "norm_items": [
+            {
+                "variable": name,
+                "label": plant.label_for(name),
+                "unit": plant.default_unit(name),
+                "range": plant.range_text(plant.get_spec(name)["norm"]),
+            }
+            for name in plant.NORM_VARIABLES
+        ],
     }
     return render(request, "monitoring/dashboard.html", context)
 
@@ -65,18 +76,49 @@ def api_latest_values(request):
     ).select_related("device")
 
     sensor_payload = []
+    norm_items = {}
     for sensor in sensors:
         latest = sensor.readings.first()
+        value = latest.value if latest else None
+        status, range_txt, is_norm = plant.evaluate(sensor.variable, value)
         sensor_payload.append(
             {
                 "id": sensor.id,
                 "device_slug": sensor.device.slug,
                 "variable": sensor.variable,
+                "label": sensor.label,
                 "unit": sensor.unit,
-                "value": latest.value if latest else None,
+                "value": value,
                 "timestamp": latest.timestamp.isoformat() if latest else None,
+                "status": status,
+                "range": range_txt,
+                "regulated": is_norm,
             }
         )
+        # Panel NCh 409: si varios dispositivos miden la misma variable, manda
+        # la lectura más reciente.
+        if is_norm and latest:
+            previous = norm_items.get(sensor.variable)
+            if previous is None or latest.timestamp.isoformat() > previous["timestamp"]:
+                norm_items[sensor.variable] = sensor_payload[-1]
+
+    compliance_items = [
+        {
+            "variable": name,
+            "label": plant.label_for(name),
+            "unit": plant.default_unit(name),
+            "range": plant.range_text(plant.get_spec(name)["norm"]),
+            "value": norm_items[name]["value"] if name in norm_items else None,
+            "status": norm_items[name]["status"] if name in norm_items else "",
+        }
+        for name in plant.NORM_VARIABLES
+    ]
+    measured = [item for item in compliance_items if item["status"]]
+    compliance = {
+        "norm": plant.NORM_NAME,
+        "complies": all(item["status"] == "ok" for item in measured) if measured else None,
+        "items": compliance_items,
+    }
 
     device_payload = [
         {
@@ -93,6 +135,7 @@ def api_latest_values(request):
             "server_time": timezone.now().isoformat(),
             "sensors": sensor_payload,
             "devices": device_payload,
+            "compliance": compliance,
         }
     )
 

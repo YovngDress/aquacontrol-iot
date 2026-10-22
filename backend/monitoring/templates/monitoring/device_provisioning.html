@@ -37,13 +37,13 @@
 
 <h2>Formato del mensaje MQTT</h2>
 <pre class="code-block">{
-  "value": 4.8,
+  "value": 7.2,
   "timestamp": "2026-07-10T12:00:00Z",
   "token": "{{ device.auth_token }}"
 }</pre>
 <p class="hint">
   Publica un mensaje por variable en <code>{{ mqtt_topic_example }}</code>
-  (ej. <code>ecs/{{ device.slug }}/resistencia_tierra</code>). El campo
+  (ej. <code>{{ mqtt_prefix }}/{{ device.slug }}/ph</code>). El campo
   <code>timestamp</code> es opcional. Cada variable nueva que publiques
   aparece automáticamente como sensor en el dashboard.
 </p>

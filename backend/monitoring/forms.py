@@ -12,14 +12,14 @@ class DeviceRegistrationForm(forms.ModelForm):
         labels = {
             "name": "Nombre",
             "slug": "ID del dispositivo",
-            "tag": "Etiqueta",
+            "tag": "Tipo de hardware",
             "location": "Ubicación",
         }
         widgets = {
-            "name": forms.TextInput(attrs={"placeholder": "ej. Sensor Subestación Norte"}),
-            "slug": forms.TextInput(attrs={"placeholder": "ej. subestacion-01"}),
-            "tag": forms.TextInput(attrs={"placeholder": "ej. sala-electrica"}),
-            "location": forms.TextInput(attrs={"placeholder": "ej. Subestación Norte, Temuco"}),
+            "name": forms.TextInput(attrs={"placeholder": "ej. ESP32 calidad de agua"}),
+            "slug": forms.TextInput(attrs={"placeholder": "ej. esp32-calidad-01"}),
+            "tag": forms.TextInput(attrs={"placeholder": "ESP32, PLC o Raspberry Pi"}),
+            "location": forms.TextInput(attrs={"placeholder": "ej. Estanque principal, Planta Sector Norte"}),
         }
 
 
@@ -78,7 +78,7 @@ class ProfileBrandingForm(forms.ModelForm):
             "background_image": "Tu imagen de fondo",
         }
         widgets = {
-            "project_name": forms.TextInput(attrs={"placeholder": "ej. Constructora Temuco Ltda."}),
+            "project_name": forms.TextInput(attrs={"placeholder": "ej. Planta de agua potable - Grupo 3"}),
         }
 
 
@@ -87,7 +87,7 @@ class SiteBrandingForm(forms.ModelForm):
         model = SiteBranding
         fields = ["logo", "background_image", "map_icon"]
         labels = {
-            "logo": "Logo de ECS IoT (login y dashboard)",
+            "logo": "Logo de la plataforma (login y dashboard)",
             "background_image": "Imagen de fondo",
             "map_icon": "Ícono del mapa (exclusivo)",
         }
@@ -102,7 +102,7 @@ class ProductForm(forms.ModelForm):
             "product_type": "Tipo",
         }
         widgets = {
-            "name": forms.TextInput(attrs={"placeholder": "ej. Malla a tierra - Subestación Norte"}),
+            "name": forms.TextInput(attrs={"placeholder": "ej. Planta de tratamiento - Sector Norte"}),
         }
 
 
@@ -118,10 +118,10 @@ class ManualEntryForm(forms.ModelForm):
         }
         widgets = {
             "note": forms.Textarea(
-                attrs={"rows": 3, "placeholder": "Ej. Medición trimestral con telurómetro: 4.2 Ω, dentro de norma."}
+                attrs={"rows": 3, "placeholder": "Ej. Muestra de laboratorio: cloro libre 0.6 mg/L, dentro de NCh 409."}
             ),
-            "variable": forms.TextInput(attrs={"placeholder": "ej. resistencia_tierra"}),
-            "unit": forms.TextInput(attrs={"placeholder": "ej. Ω"}),
+            "variable": forms.TextInput(attrs={"placeholder": "ej. cloro_libre"}),
+            "unit": forms.TextInput(attrs={"placeholder": "ej. mg/L"}),
         }
 
 

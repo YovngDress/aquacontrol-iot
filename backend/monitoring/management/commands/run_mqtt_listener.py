@@ -1,6 +1,7 @@
 import json
 import logging
 import secrets
+import time
 
 import paho.mqtt.client as mqtt
 from django.conf import settings
@@ -8,19 +9,11 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from monitoring.models import Device, Sensor, SensorReading, UnregisteredReading
+from monitoring.models import Device, Sensor, SensorReading, UnregisteredReading, Widget
+from monitoring.plant import default_unit, widget_defaults
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_UNITS = {
-    "resistencia_tierra": "Ω",
-    "voltaje": "V",
-    "continuidad": "Ω",
-    "temperatura": "°C",
-    "humedad": "%",
-    "presion": "hPa",
-    "gas": "kΩ",
-}
 
 
 class Command(BaseCommand):
@@ -57,7 +50,13 @@ class Command(BaseCommand):
         client.on_message = on_message
 
         client.reconnect_delay_set(min_delay=1, max_delay=30)
-        client.connect(settings.MQTT_BROKER_HOST, settings.MQTT_BROKER_PORT, keepalive=60)
+        while True:
+            try:
+                client.connect(settings.MQTT_BROKER_HOST, settings.MQTT_BROKER_PORT, keepalive=60)
+                break
+            except OSError as exc:
+                self.stdout.write(self.style.WARNING(f"Broker MQTT no disponible ({exc}), reintentando en 3s..."))
+                time.sleep(3)
         client.loop_forever()
 
 
@@ -112,14 +111,16 @@ def _handle_message(topic, payload):
     sensor, created = Sensor.objects.get_or_create(
         device=device,
         variable=variable,
-        defaults={"unit": DEFAULT_UNITS.get(variable, "")},
+        defaults={"unit": default_unit(variable)},
     )
 
-    if not created and not sensor.unit:
-        default_unit = DEFAULT_UNITS.get(variable)
-        if default_unit:
-            sensor.unit = default_unit
-            sensor.save(update_fields=["unit"])
+    if created:
+        # Gadget por defecto según el catálogo de la planta (monitoring/plant.py):
+        # medidor para pH/turbiedad/cloro, botón para bomba/válvula, slider para el dosificador...
+        Widget.objects.get_or_create(sensor=sensor, defaults=widget_defaults(variable))
+    elif not sensor.unit and default_unit(variable):
+        sensor.unit = default_unit(variable)
+        sensor.save(update_fields=["unit"])
 
     SensorReading.objects.create(sensor=sensor, value=float(value), timestamp=ts)
     Device.objects.filter(pk=device.pk).update(last_seen_at=timezone.now())

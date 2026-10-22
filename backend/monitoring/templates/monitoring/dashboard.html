@@ -3,31 +3,125 @@
 {% block title %}Dashboard - {{ block.super }}{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>Dashboard</h1>
+  <div>
+    <h1>Planta de agua potable</h1>
+    <p class="page-subtitle">ESP32 (calidad de agua) · PLC (proceso) · Raspberry Pi (gateway Modbus ↔ MQTT)</p>
+  </div>
   <a class="btn" href="{% url 'monitoring:device-create' %}">+ Agregar dispositivo</a>
 </div>
 
 {{ seed_data|json_script:"seed-data" }}
 
-<div id="dashboard-root" class="device-grid"
+<div id="dashboard-root"
      data-api-url="{% url 'monitoring:api-latest' %}"
      data-command-url-template="{% url 'monitoring:sensor-command' 0 %}">
+
+  {# ---------- Cumplimiento NCh 409 ---------- #}
+  <section class="panel compliance-panel">
+    <header class="panel-header">
+      <h2>Cumplimiento {{ norm_name }}</h2>
+      <span class="verdict" data-role="verdict">sin datos</span>
+    </header>
+    <div class="compliance-grid">
+      {% for item in norm_items %}
+        <div class="compliance-item" data-norm-var="{{ item.variable }}">
+          <span class="compliance-label">{{ item.label }}</span>
+          <span class="compliance-value"><span data-role="norm-value">--</span> <small>{{ item.unit }}</small></span>
+          <span class="compliance-range">Norma: {{ item.range }} {{ item.unit }}</span>
+          <span class="chip" data-role="norm-chip">sin dato</span>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="hint">Temperatura y oxígeno disuelto se muestran con rangos operacionales de referencia: NCh 409/1 no les fija un límite, por lo que no entran en el veredicto.</p>
+  </section>
+
+  {# ---------- Diagrama del proceso ---------- #}
+  <section class="panel process-panel">
+    <header class="panel-header">
+      <h2>Proceso</h2>
+      <div class="process-flags">
+        <span class="chip" data-flag="modo_auto" data-on="Modo automático" data-off="Modo manual">modo --</span>
+        <span class="chip" data-flag="plc_conectado" data-on="PLC enlazado" data-off="PLC sin enlace">PLC --</span>
+        <span class="chip" data-flag="alarma" data-on="ALARMA" data-off="Sin alarmas" data-alert="1">alarma --</span>
+      </div>
+    </header>
+    <svg class="process-diagram" viewBox="0 0 760 230" role="img" aria-label="Diagrama de la planta: captación, bomba, estanque, válvula y red">
+      <defs>
+        <clipPath id="tank-clip"><rect x="330" y="50" width="140" height="140" rx="8"></rect></clipPath>
+      </defs>
+      <!-- captación -->
+      <rect x="20" y="130" width="90" height="60" rx="8" class="pd-box"></rect>
+      <text x="65" y="155" class="pd-label" text-anchor="middle">Captación</text>
+      <text x="65" y="173" class="pd-sub" text-anchor="middle">(fuente)</text>
+      <!-- tubería captación -> bomba -> estanque -->
+      <path d="M110 160 H170" class="pd-pipe" data-pipe="bomba"></path>
+      <path d="M230 160 H300 V120 H330" class="pd-pipe" data-pipe="bomba"></path>
+      <!-- bomba -->
+      <g data-equip="bomba">
+        <circle cx="200" cy="160" r="30" class="pd-equip"></circle>
+        <path d="M188 146 L216 160 L188 174 Z" class="pd-equip-icon"></path>
+      </g>
+      <text x="200" y="210" class="pd-label" text-anchor="middle">Bomba</text>
+      <text x="200" y="225" class="pd-sub" text-anchor="middle" data-text="bomba">--</text>
+      <!-- dosificador de cloro -->
+      <rect x="350" y="4" width="100" height="30" rx="6" class="pd-box"></rect>
+      <text x="400" y="24" class="pd-sub" text-anchor="middle">Cloro <tspan data-text="dosificador_cloro">--</tspan></text>
+      <path d="M400 34 V50" class="pd-pipe pd-dose" data-pipe="dosificador_cloro"></path>
+      <!-- estanque -->
+      <g clip-path="url(#tank-clip)">
+        <rect x="330" y="50" width="140" height="140" class="pd-tank-bg"></rect>
+        <rect x="330" y="190" width="140" height="0" class="pd-water" data-role="tank-water"></rect>
+      </g>
+      <rect x="330" y="50" width="140" height="140" rx="8" class="pd-tank"></rect>
+      <text x="400" y="118" class="pd-value" text-anchor="middle" data-text="nivel_estanque">--</text>
+      <text x="400" y="138" class="pd-sub" text-anchor="middle">nivel</text>
+      <text x="400" y="210" class="pd-label" text-anchor="middle">Estanque</text>
+      <text x="400" y="225" class="pd-sub" text-anchor="middle">pH <tspan data-text="ph">--</tspan> · Cl <tspan data-text="cloro_libre">--</tspan></text>
+      <!-- tubería estanque -> válvula -> red -->
+      <path d="M470 170 H545" class="pd-pipe" data-pipe="valvula"></path>
+      <path d="M595 170 H640" class="pd-pipe" data-pipe="valvula"></path>
+      <!-- válvula -->
+      <g data-equip="valvula">
+        <path d="M545 150 L595 190 L595 150 L545 190 Z" class="pd-equip"></path>
+        <path d="M570 170 V138 M558 138 H582" class="pd-stem"></path>
+      </g>
+      <text x="570" y="210" class="pd-label" text-anchor="middle">Válvula</text>
+      <text x="570" y="225" class="pd-sub" text-anchor="middle" data-text="valvula">--</text>
+      <!-- red -->
+      <rect x="640" y="140" width="100" height="60" rx="8" class="pd-box"></rect>
+      <text x="690" y="162" class="pd-label" text-anchor="middle">Red</text>
+      <text x="690" y="178" class="pd-sub" text-anchor="middle"><tspan data-text="caudal">--</tspan></text>
+      <text x="690" y="193" class="pd-sub" text-anchor="middle"><tspan data-text="presion">--</tspan></text>
+    </svg>
+  </section>
+
+  {# ---------- Dispositivos ---------- #}
+  <div class="device-grid">
   {% for device in devices %}
     <section class="device-card" data-device-id="{{ device.id }}">
       <header>
         <h2>{{ device.name }}</h2>
-        <span class="badge" data-role="status-badge">sin datos</span>
+        <span class="device-header-badges">
+          {% if device.tag %}<span class="hw-tag">{{ device.tag }}</span>{% endif %}
+          <span class="badge" data-role="status-badge">sin datos</span>
+        </span>
       </header>
       {% if device.location %}<p class="location">{{ device.location }}</p>{% endif %}
       <div class="sensor-grid">
-        {% for sensor in device.sensors.all %}
+        {% for sensor in device.sensors_in_plant_order %}
           {% if sensor.is_active %}
           {% with widget=sensor.get_widget %}
-          <div class="sensor-card" data-sensor-id="{{ sensor.id }}" data-widget-type="{{ widget.widget_type }}">
+          <div class="sensor-card" data-sensor-id="{{ sensor.id }}" data-variable="{{ sensor.variable }}" data-widget-type="{{ widget.widget_type }}">
             <div class="sensor-card-header">
-              <h3>{{ sensor.variable }} <span class="unit">{{ sensor.unit }}</span></h3>
+              <h3>{{ sensor.label }} {% if sensor.unit %}<span class="unit">{{ sensor.unit }}</span>{% endif %}</h3>
               <a class="gadget-config-link" href="{% url 'monitoring:sensor-widget-edit' sensor.id %}" title="Configurar gadget">⚙</a>
             </div>
+            {% if sensor.range_text %}
+              <p class="sensor-range">
+                {% if sensor.is_regulated %}NCh 409: {% else %}Referencia: {% endif %}{{ sensor.range_text }} {{ sensor.unit }}
+                <span class="chip chip-small" data-role="status-chip"></span>
+              </p>
+            {% endif %}
 
             {% localize off %}
             {% if widget.widget_type == "line_chart" %}
@@ -42,6 +136,7 @@
               <div class="meter-track">
                 <div class="meter-fill" data-role="meter-fill" data-min="{{ widget.min_value }}" data-max="{{ widget.max_value }}"></div>
               </div>
+              <div class="meter-scale"><span>{{ widget.min_value }}</span><span>{{ widget.max_value }}</span></div>
 
             {% elif widget.widget_type == "led" %}
               <div class="led-row">
@@ -70,10 +165,12 @@
   {% empty %}
     <p class="empty-state">
       No hay dispositivos activos todavía.
-      <a href="{% url 'monitoring:device-create' %}">Agrega un sensor</a> para
-      obtener su ID y token, y prográmalo en el hardware.
+      <a href="{% url 'monitoring:device-create' %}">Registra el ESP32, el PLC y la Raspberry Pi</a>
+      para obtener su ID y token, y prográmalos en el hardware
+      (o corre <code>python manage.py seed_demo_data</code>).
     </p>
   {% endfor %}
+  </div>
 </div>
 
 <script src="{% static 'monitoring/js/dashboard.js' %}"></script>

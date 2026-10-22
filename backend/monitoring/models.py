@@ -32,7 +32,7 @@ class Profile(models.Model):
     project_name = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Nombre de tu proyecto/empresa. Se muestra junto a «ECS IoT» en tu dashboard.",
+        help_text="Nombre de tu proyecto/empresa. Se muestra junto al nombre de la plataforma en tu dashboard.",
     )
     logo = models.ImageField(
         upload_to="branding/user_logos/", blank=True, null=True, validators=[validate_image_size]
@@ -46,7 +46,7 @@ class Profile(models.Model):
 
 
 class SiteBranding(models.Model):
-    """Singleton: marca general de ECS IoT (login y valor por defecto para todos)."""
+    """Singleton: marca general de la plataforma (login y valor por defecto para todos)."""
 
     logo = models.ImageField(upload_to="branding/site/", blank=True, null=True, validators=[validate_image_size])
     background_image = models.ImageField(
@@ -65,7 +65,7 @@ class SiteBranding(models.Model):
         verbose_name_plural = "Marca del sitio"
 
     def __str__(self):
-        return "Marca del sitio (ECS IoT)"
+        return "Marca del sitio"
 
     def save(self, *args, **kwargs):
         self.pk = 1
@@ -81,7 +81,7 @@ class SiteBranding(models.Model):
 
 
 class ProductType(models.Model):
-    """Tipo de producto de puesta a tierra (electroimán activo, malla a tierra, barra copperweld, ...).
+    """Tipo de instalación de la planta (planta de tratamiento, estanque, punto de muestreo, ...).
 
     Íconos gestionados por el rol Global; el propio rol Global puede agregar
     tipos nuevos (ej. especificados a pedido de un cliente) sin tocar código.
@@ -105,7 +105,7 @@ class ProductType(models.Model):
 
 
 class Product(models.Model):
-    """Una instancia concreta de un tipo (ej. 'Malla a tierra - Subestación Norte'), con 0+ dispositivos."""
+    """Una instalación concreta (ej. 'Planta de tratamiento Sector Norte'), con 0+ dispositivos."""
 
     owner = models.ForeignKey(User, related_name="products", on_delete=models.CASCADE)
     product_type = models.ForeignKey(ProductType, related_name="products", on_delete=models.PROTECT)
@@ -146,8 +146,8 @@ class ManualEntry(models.Model):
     """Registro a mano del estado de un producto sin dispositivo/sensor asociado."""
 
     product = models.ForeignKey(Product, related_name="manual_entries", on_delete=models.CASCADE)
-    note = models.TextField(help_text="Ej. «Medición trimestral con telurómetro: 4.2 Ω, dentro de norma».")
-    variable = models.CharField(max_length=50, blank=True, help_text="Ej. resistencia_tierra (opcional).")
+    note = models.TextField(help_text="Ej. «Muestra de laboratorio: cloro libre 0.6 mg/L, dentro de NCh 409».")
+    variable = models.CharField(max_length=50, blank=True, help_text="Ej. cloro_libre (opcional).")
     value = models.FloatField(null=True, blank=True)
     unit = models.CharField(max_length=20, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
@@ -169,17 +169,17 @@ class Device(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Producto (puesta a tierra) al que pertenece este dispositivo (opcional).",
+        help_text="Instalación de la planta a la que pertenece este dispositivo (opcional).",
     )
     name = models.CharField(max_length=100)
     slug = models.SlugField(
         unique=True,
-        help_text="ID del dispositivo. Debe coincidir con el segmento del topic MQTT: ecs/<slug>/<variable>",
+        help_text="ID del dispositivo. Debe coincidir con el segmento del topic MQTT: <prefijo>/<slug>/<variable>",
     )
     tag = models.CharField(
         max_length=50,
         blank=True,
-        help_text="Etiqueta corta para distinguir el hardware durante el aprovisionamiento (ej. nombre del AP WiFi de configuración).",
+        help_text="Tipo de hardware: ESP32, PLC o Raspberry Pi (se muestra en el dashboard).",
     )
     auth_token = models.CharField(
         max_length=64,
@@ -209,11 +209,21 @@ class Device(models.Model):
     def has_location(self):
         return self.latitude is not None and self.longitude is not None
 
+    def sensors_in_plant_order(self):
+        """Sensores activos en el orden del catálogo de la planta (plant.py)."""
+        from .plant import VARIABLES
+
+        order = {name: i for i, name in enumerate(VARIABLES)}
+        return sorted(
+            (s for s in self.sensors.all() if s.is_active),
+            key=lambda s: (order.get(s.variable, len(order)), s.variable),
+        )
+
 
 class Sensor(models.Model):
     device = models.ForeignKey(Device, related_name="sensors", on_delete=models.CASCADE)
-    variable = models.CharField(max_length=50, help_text="ej. resistencia_tierra, voltaje, continuidad")
-    unit = models.CharField(max_length=20, blank=True, help_text="ej. Ω, V")
+    variable = models.CharField(max_length=50, help_text="ej. ph, turbidez, cloro_libre, nivel_estanque")
+    unit = models.CharField(max_length=20, blank=True, help_text="ej. pH, NTU, mg/L")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -225,8 +235,31 @@ class Sensor(models.Model):
         return f"{self.device.name} / {self.variable}"
 
     def get_widget(self):
-        widget, _ = Widget.objects.get_or_create(sensor=self)
+        from .plant import widget_defaults
+
+        widget, _ = Widget.objects.get_or_create(sensor=self, defaults=widget_defaults(self.variable))
         return widget
+
+    @property
+    def label(self):
+        from .plant import label_for
+
+        return label_for(self.variable)
+
+    @property
+    def range_text(self):
+        """Rango NCh 409 (o de referencia operacional) de esta variable, si tiene."""
+        from .plant import get_spec, range_text
+
+        spec = get_spec(self.variable)
+        bounds = spec.get("norm") or spec.get("ref")
+        return range_text(bounds) if bounds else ""
+
+    @property
+    def is_regulated(self):
+        from .plant import get_spec
+
+        return "norm" in get_spec(self.variable)
 
 
 class Widget(models.Model):
@@ -255,7 +288,7 @@ class Widget(models.Model):
         default=1,
         help_text=(
             "Usado por Indicador LED: se enciende cuando el valor es mayor o igual a este umbral "
-            "(ej. resistencia de puesta a tierra por sobre el máximo permitido según la norma aplicable)."
+            "(ej. alarma de planta = 1)."
         ),
     )
     button_on_value = models.FloatField(default=1, help_text="Usado por Botón: valor que se publica al encender.")
