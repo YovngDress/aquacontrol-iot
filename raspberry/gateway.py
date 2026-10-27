@@ -5,7 +5,7 @@ Qué hace:
      como el dispositivo PLC_DEVICE_SLUG (nivel, caudal, presión, bomba,
      válvula, modo automático, dosificador, alarma).
   2. Escucha los comandos del dashboard (<prefijo>/<plc>/<variable>/set),
-     valida el token y escribe la coil/registro correspondiente en el PLC;
+     valida el token y escribe el registro de comando correspondiente en el PLC;
      luego publica el estado real leído del PLC (así el botón del dashboard
      confirma el cambio en vez de suponerlo).
   3. Reenvía al PLC las lecturas de calidad del ESP32 (pH, cloro libre,
@@ -35,22 +35,27 @@ from pymodbus.client import ModbusTcpClient
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [GATEWAY] %(message)s")
 log = logging.getLogger("gateway")
 
-# variable -> (tipo, dirección, escala)   — debe calzar con el mapa de plc_simulado.py
-PLC_MAP = {
-    "bomba": ("coil", 0, 1),
-    "valvula": ("coil", 1, 1),
-    "modo_auto": ("coil", 2, 1),
-    "alarma": ("coil", 3, 1),
-    "nivel_estanque": ("hr", 0, 10),
-    "caudal": ("hr", 1, 10),
-    "presion": ("hr", 2, 100),
-    "dosificador_cloro": ("hr", 3, 1),
+# Mapa Modbus (solo holding registers) — debe calzar con plc/AquaControl_S7-1200.scl
+# y con plc_simulado.py. Dirección N = "ModbusData".HR[N] en el S7-1200 = registro 4000(N+1).
+# variable -> (registro de estado, escala)
+PLC_STATUS = {
+    "nivel_estanque": (0, 10),
+    "caudal": (1, 10),
+    "presion": (2, 100),
+    "dosificador_cloro": (3, 1),
+    "bomba": (4, 1),
+    "valvula": (5, 1),
+    "modo_auto": (6, 1),
+    "alarma": (7, 1),
 }
-WRITABLE = {"bomba", "valvula", "modo_auto", "dosificador_cloro"}
-HR_HEARTBEAT = 13
+HR_HEARTBEAT = 8
+# variable -> registro de comando (lo que el dashboard puede escribir)
+PLC_COMMANDS = {"bomba": 10, "valvula": 11, "modo_auto": 12, "dosificador_cloro": 13}
+DIGITAL = {"bomba", "valvula", "modo_auto"}
+READ_COUNT = 9  # registros 0..8
 
-# variable del ESP32 -> (holding register del PLC, escala)
-FORWARD_TO_PLC = {"ph": (10, 100), "cloro_libre": (11, 100), "turbidez": (12, 100)}
+# variable del ESP32 -> (registro del PLC, escala)
+FORWARD_TO_PLC = {"ph": (20, 100), "cloro_libre": (21, 100), "turbidez": (22, 100)}
 
 
 def load_env_file(path):
@@ -174,27 +179,24 @@ class Gateway:
         if str(data.get("token", "")) != self.plc_token:
             log.warning("Comando para %s rechazado: token inválido", variable)
             return
-        if variable not in WRITABLE:
+        if variable not in PLC_COMMANDS:
             log.warning("La variable %s no es escribible en el PLC", variable)
             return
         try:
             value = float(data["value"])
         except (KeyError, TypeError, ValueError):
             return
-        kind, addr, _ = PLC_MAP[variable]
+        raw = (1 if value >= 0.5 else 0) if variable in DIGITAL else int(max(0, min(100, round(value))))
         with self.plc_lock:
             if not self.ensure_plc():
                 log.error("Comando %s=%s no aplicado: PLC sin conexión", variable, value)
                 return
-            if kind == "coil":
-                result = self.plc.write_coil(addr, value >= 0.5, slave=self.plc_unit)
-            else:
-                result = self.plc.write_register(addr, int(max(0, min(100, round(value)))), slave=self.plc_unit)
+            result = self.plc.write_register(PLC_COMMANDS[variable], raw, slave=self.plc_unit)
         if result.isError():
             log.error("El PLC rechazó la escritura de %s: %s", variable, result)
             return
         log.info("Comando aplicado en PLC: %s = %s", variable, value)
-        time.sleep(0.6)  # deja correr un ciclo de scan para leer el estado real
+        time.sleep(1.2)  # deja correr un ciclo de OB30 (0.5 s) para leer el estado real
         self.poll_plc(force=True)
 
     def forward_quality(self, variable, data):
@@ -215,11 +217,10 @@ class Gateway:
     def poll_plc(self, force=False):
         with self.plc_lock:
             ok = self.ensure_plc()
-            coils = regs = None
+            regs = None
             if ok:
-                coils = self.plc.read_coils(0, 4, slave=self.plc_unit)
-                regs = self.plc.read_holding_registers(0, 14, slave=self.plc_unit)
-                ok = not coils.isError() and not regs.isError()
+                regs = self.plc.read_holding_registers(0, READ_COUNT, slave=self.plc_unit)
+                ok = not regs.isError()
             if not ok:
                 self.plc.close()
 
@@ -227,7 +228,7 @@ class Gateway:
             heartbeat = regs.registers[HR_HEARTBEAT]
             self.heartbeat_stale_polls = self.heartbeat_stale_polls + 1 if heartbeat == self.last_heartbeat else 0
             self.last_heartbeat = heartbeat
-            ok = self.heartbeat_stale_polls < 3  # el PLC responde pero no está ejecutando su programa
+            ok = self.heartbeat_stale_polls < 3  # el PLC responde pero su programa está en STOP
 
         if ok != self.plc_online:
             log.info("Enlace con PLC: %s", "OK" if ok else "PERDIDO")
@@ -235,11 +236,9 @@ class Gateway:
         if not ok:
             return
 
-        for variable, (kind, addr, scale) in PLC_MAP.items():
-            if kind == "coil":
-                value = 1 if coils.bits[addr] else 0
-            else:
-                value = round(regs.registers[addr] / scale, 2)
+        for variable, (addr, scale) in PLC_STATUS.items():
+            raw = regs.registers[addr]
+            value = (1 if raw else 0) if variable in DIGITAL or variable == "alarma" else round(raw / scale, 2)
             self.publish(self.plc_slug, self.plc_token, variable, value, force=force)
 
     def publish_rpi(self):

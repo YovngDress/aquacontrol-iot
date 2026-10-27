@@ -1,0 +1,225 @@
+// =====================================================================
+// AquaControl IoT - Programa del PLC Siemens S7-1200 (TIA Portal)
+// Planta de agua potable: control de bomba, valvula y dosificador de
+// cloro, con el nivel del estanque SIMULADO dentro del PLC.
+//
+// Importar en TIA Portal:
+//   Arbol del proyecto > PLC_1 > Fuentes externas > Agregar nuevo archivo
+//   externo > este .scl > clic derecho > "Generar bloques a partir de la fuente".
+// Se crean:
+//   - DB "ModbusData"  (acceso NO optimizado): HR[0..29] = holding registers
+//   - FB "FB_Planta"   logica de la planta (llamar desde OB30, ciclo 500 ms)
+// El MB_SERVER (Modbus TCP) se agrega a mano en OB1: ver plc/README.md.
+//
+// Mapa Modbus (HR[n] = registro 4000(n+1); el gateway usa direccion n):
+//   Estado (PLC -> gateway)          Comandos (gateway -> PLC)
+//    0 nivel %      x10              10 cmd_bomba        0/1 (solo manual)
+//    1 caudal L/min x10              11 cmd_valvula      0/1
+//    2 presion bar  x100             12 cmd_modo_auto    0/1
+//    3 dosificador  %                13 cmd_dosificador  %   (solo manual)
+//    4 bomba        0/1
+//    5 valvula      0/1             Calidad del agua (gateway <- ESP32)
+//    6 modo_auto    0/1              20 pH          x100
+//    7 alarma       0/1              21 cloro libre x100
+//    8 heartbeat    contador         22 turbiedad   x100
+//
+// Salidas fisicas (asignadas en OB30): Q0.0 bomba, Q0.1 valvula,
+// Q0.2 alarma, Q0.3 modo automatico (se ven en los LEDs del PLC).
+// =====================================================================
+
+DATA_BLOCK "ModbusData"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      HR : Array[0..29] of Word;   // Holding registers del MB_SERVER (MB_HOLD_REG)
+   END_VAR
+
+BEGIN
+
+END_DATA_BLOCK
+
+FUNCTION_BLOCK "FB_Planta"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_OUTPUT
+      Q_Bomba : Bool;     // -> %Q0.0
+      Q_Valvula : Bool;   // -> %Q0.1
+      Q_Alarma : Bool;    // -> %Q0.2
+      Q_Auto : Bool;      // -> %Q0.3
+   END_VAR
+
+   VAR
+      Nivel : Real := 60.0;     // Nivel simulado del estanque [%]
+      Dosif : Real := 40.0;     // Dosificador de cloro [%]
+      Bomba : Bool;
+      Valvula : Bool;
+      Auto : Bool;
+      Alarma : Bool;
+      Tick : Int;               // Contador para variar la demanda
+      Heartbeat : Int;          // El gateway detecta si el PLC esta en STOP
+      InitDone : Bool;
+   END_VAR
+
+   VAR_TEMP
+      Ph : Real;
+      Cloro : Real;
+      Turb : Real;
+      Demanda : Real;
+      Entrada : Real;
+      Salida : Real;
+      Presion : Real;
+   END_VAR
+
+
+BEGIN
+	// ---------------------------------------------------------------
+	// 0) Primer ciclo: valores iniciales de los comandos
+	// ---------------------------------------------------------------
+	IF NOT #InitDone THEN
+	    #Nivel := 60.0;
+	    #Dosif := 40.0;
+	    #Bomba := TRUE;
+	    "ModbusData".HR[10] := 16#1;              // cmd_bomba
+	    "ModbusData".HR[11] := 16#1;              // cmd_valvula (abierta)
+	    "ModbusData".HR[12] := 16#1;              // cmd_modo_auto
+	    "ModbusData".HR[13] := INT_TO_WORD(40);   // cmd_dosificador
+	    #InitDone := TRUE;
+	END_IF;
+
+	// ---------------------------------------------------------------
+	// 1) Leer comandos del dashboard y calidad del agua (ESP32)
+	// ---------------------------------------------------------------
+	#Auto := "ModbusData".HR[12] <> 16#0;
+	#Valvula := "ModbusData".HR[11] <> 16#0;
+	#Ph := INT_TO_REAL(WORD_TO_INT("ModbusData".HR[20])) / 100.0;
+	#Cloro := INT_TO_REAL(WORD_TO_INT("ModbusData".HR[21])) / 100.0;
+	#Turb := INT_TO_REAL(WORD_TO_INT("ModbusData".HR[22])) / 100.0;
+
+	// ---------------------------------------------------------------
+	// 2) Control automatico / manual
+	// ---------------------------------------------------------------
+	IF #Auto THEN
+	    // Bomba por nivel con histeresis
+	    IF #Nivel < 30.0 THEN
+	        #Bomba := TRUE;
+	    ELSIF #Nivel > 90.0 THEN
+	        #Bomba := FALSE;
+	    END_IF;
+	    // Dosificador proporcional: cloro libre objetivo 0.8 mg/L
+	    IF #Cloro > 0.0 THEN
+	        #Dosif := LIMIT(MN := 0.0, IN := #Dosif + (0.8 - #Cloro) * 5.0, MX := 100.0);
+	    END_IF;
+	    // Transferencia sin salto: los comandos siguen al estado actual
+	    IF #Bomba THEN
+	        "ModbusData".HR[10] := 16#1;
+	    ELSE
+	        "ModbusData".HR[10] := 16#0;
+	    END_IF;
+	    "ModbusData".HR[13] := INT_TO_WORD(REAL_TO_INT(#Dosif));
+	ELSE
+	    // Manual: el operador manda desde el dashboard
+	    #Bomba := "ModbusData".HR[10] <> 16#0;
+	    #Dosif := LIMIT(MN := 0.0, IN := INT_TO_REAL(WORD_TO_INT("ModbusData".HR[13])), MX := 100.0);
+	END_IF;
+
+	// ---------------------------------------------------------------
+	// 3) Proteccion: nivel muy bajo cierra la valvula de salida
+	// ---------------------------------------------------------------
+	IF #Nivel < 5.0 THEN
+	    #Valvula := FALSE;
+	    "ModbusData".HR[11] := 16#0;
+	END_IF;
+
+	// ---------------------------------------------------------------
+	// 4) Simulacion del estanque (2000 L, ciclo de 0.5 s)
+	// ---------------------------------------------------------------
+	#Tick := #Tick + 1;
+	IF #Tick >= 30000 THEN
+	    #Tick := 0;
+	END_IF;
+	#Demanda := 80.0 + 8.0 * SIN(INT_TO_REAL(#Tick) * 0.05);   // L/min
+
+	IF #Bomba THEN
+	    #Entrada := 150.0;                                       // L/min de la bomba
+	ELSE
+	    #Entrada := 0.0;
+	END_IF;
+	IF #Valvula AND (#Nivel > 0.0) THEN
+	    #Salida := #Demanda;
+	ELSE
+	    #Salida := 0.0;
+	END_IF;
+
+	// dNivel[%] = (Qin - Qout)[L/min] * (0.5/60)[min] / 2000[L] * 100
+	#Nivel := LIMIT(MN := 0.0, IN := #Nivel + (#Entrada - #Salida) * (0.5 / 60.0) / 2000.0 * 100.0, MX := 100.0);
+
+	#Presion := 0.6 + #Nivel * 0.02;
+	IF #Bomba THEN
+	    #Presion := #Presion + 0.8;
+	END_IF;
+	IF #Valvula THEN
+	    #Presion := #Presion - 0.3;
+	END_IF;
+	IF #Presion < 0.0 THEN
+	    #Presion := 0.0;
+	END_IF;
+
+	// ---------------------------------------------------------------
+	// 5) Alarma: nivel extremo o calidad fuera de NCh 409
+	// ---------------------------------------------------------------
+	#Alarma := (#Nivel < 10.0) OR (#Nivel > 97.0);
+	IF (#Ph > 0.0) AND ((#Ph < 6.5) OR (#Ph > 8.5)) THEN
+	    #Alarma := TRUE;
+	END_IF;
+	IF (#Cloro > 0.0) AND ((#Cloro < 0.2) OR (#Cloro > 2.0)) THEN
+	    #Alarma := TRUE;
+	END_IF;
+	IF #Turb > 2.0 THEN
+	    #Alarma := TRUE;
+	END_IF;
+
+	// ---------------------------------------------------------------
+	// 6) Publicar estado en los holding registers
+	// ---------------------------------------------------------------
+	"ModbusData".HR[0] := INT_TO_WORD(REAL_TO_INT(#Nivel * 10.0));
+	"ModbusData".HR[1] := INT_TO_WORD(REAL_TO_INT(#Salida * 10.0));
+	"ModbusData".HR[2] := INT_TO_WORD(REAL_TO_INT(#Presion * 100.0));
+	"ModbusData".HR[3] := INT_TO_WORD(REAL_TO_INT(#Dosif));
+
+	IF #Bomba THEN
+	    "ModbusData".HR[4] := 16#1;
+	ELSE
+	    "ModbusData".HR[4] := 16#0;
+	END_IF;
+	IF #Valvula THEN
+	    "ModbusData".HR[5] := 16#1;
+	ELSE
+	    "ModbusData".HR[5] := 16#0;
+	END_IF;
+	IF #Auto THEN
+	    "ModbusData".HR[6] := 16#1;
+	ELSE
+	    "ModbusData".HR[6] := 16#0;
+	END_IF;
+	IF #Alarma THEN
+	    "ModbusData".HR[7] := 16#1;
+	ELSE
+	    "ModbusData".HR[7] := 16#0;
+	END_IF;
+
+	#Heartbeat := #Heartbeat + 1;
+	IF #Heartbeat >= 32000 THEN
+	    #Heartbeat := 0;
+	END_IF;
+	"ModbusData".HR[8] := INT_TO_WORD(#Heartbeat);
+
+	// ---------------------------------------------------------------
+	// 7) Salidas fisicas
+	// ---------------------------------------------------------------
+	#Q_Bomba := #Bomba;
+	#Q_Valvula := #Valvula;
+	#Q_Alarma := #Alarma;
+	#Q_Auto := #Auto;
+END_FUNCTION_BLOCK
+

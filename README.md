@@ -6,8 +6,8 @@ agua potable. Conecta los tres equipos que exige el proyecto:
 | Equipo | Rol en la planta | Cómo se conecta |
 |---|---|---|
 | **ESP32** | Mide la calidad del agua: **pH (sensor real)**, turbiedad, cloro libre, temperatura y oxígeno disuelto (simulados) | WiFi → MQTT |
-| **PLC** | Controla el proceso: bomba, electroválvula, dosificador de cloro, nivel del estanque, alarma | Modbus TCP → Raspberry Pi |
-| **Raspberry Pi** | Gateway: lee/escribe el PLC por Modbus TCP y lo publica por MQTT; corre el PLC simulado | Ethernet/WiFi → MQTT |
+| **PLC Siemens S7-1200** | Controla el proceso: bomba, electroválvula, dosificador de cloro, alarma; **simula el nivel del estanque** en su programa (TIA Portal) | Modbus TCP (puerto 502) → Raspberry Pi |
+| **Raspberry Pi** | Gateway: lee/escribe el PLC por Modbus TCP y lo publica por MQTT | Ethernet al PLC, WiFi → MQTT |
 
 Basada en la plataforma [`urbanatika/ecs-iot`](https://github.com/urbanatika/ecs-iot)
 (Mosquitto + Django + PostgreSQL + Docker). Se adaptó el diseño, las
@@ -22,7 +22,7 @@ variables de proceso, las entradas/salidas y el dashboard a este proyecto.
  │            ESP32 ──────────────┼────────────────┼─▶│ Mosquitto │──▶│ mqtt_listener │──▶│ PostgreSQL │   │
  │  LED alarma┘   ▲               │                │  └───────────┘   └───────────────┘   └─────┬──────┘   │
  │                │ alarma/dosif. │                │        ▲                                   │          │
- │  PLC ◀─Modbus TCP─▶ Raspberry Pi ──────────────┼────────┘  comandos /set        ┌──────────▼───────┐  │
+ │  S7-1200 ◀Modbus─▶ Raspberry Pi ──────────────┼────────┘  comandos /set        ┌──────────▼───────┐  │
  │  (bomba, válvula,   (gateway.py)│   MQTT         │        ◀──────────────────────│ Django (dashboard)│◀─ navegador
  │   dosificador)                  │                │                               └──────────────────┘  │
  └─────────────────────────────────┘                └───────────────────────────────────────────────────────┘
@@ -129,7 +129,7 @@ Servicios de `docker-compose.yml`:
 | `web` | Django (gunicorn): dashboard y API |
 | `mqtt_listener` | Guarda en la BD las lecturas MQTT validadas por token |
 | `simulator` | Simula el ESP32 (si no está conectado el real) |
-| `plc_sim` | PLC simulado, Modbus TCP :5020 |
+| `plc_sim` | Réplica en Python del programa del S7-1200 (Modbus TCP :5020), para probar sin el PLC |
 | `gateway` | Gateway Modbus ↔ MQTT (lo mismo que corre la Raspberry Pi) |
 
 Cuando conecten el hardware real: `docker compose stop simulator plc_sim gateway`
@@ -138,7 +138,8 @@ y usen el ESP32 y la Raspberry Pi.
 ## Hardware real
 
 - **ESP32** → [`firmware/README.md`](firmware/README.md) (sketch, conexión de la sonda de pH, calibración).
-- **Raspberry Pi + PLC** → [`raspberry/README.md`](raspberry/README.md) (PLC simulado, gateway, mapa Modbus, servicios systemd).
+- **PLC S7-1200** → [`plc/README.md`](plc/README.md) (programa SCL para TIA Portal, MB_SERVER, red con la Raspberry Pi).
+- **Raspberry Pi** → [`raspberry/README.md`](raspberry/README.md) (gateway, mapa Modbus, servicios systemd).
 
 El ESP32 y la Raspberry Pi deben llegar al broker: en la misma red, la IP del
 PC que corre Docker y el puerto `MOSQUITTO_HOST_PORT`; desde internet, el TCP
@@ -152,7 +153,7 @@ Proxy de Railway (ver abajo).
    panel "No cumple", **alarma del PLC** y **LED del ESP32** encendidos.
 3. Pasar a **modo manual**, cerrar la válvula y mover el dosificador: el PLC
    aplica la orden y el cloro del ESP32 sube/baja.
-4. Apagar el PLC simulado en la Raspberry Pi → "PLC sin enlace" en el dashboard.
+4. Desconectar el cable Ethernet del PLC o pasar la CPU a STOP → "PLC sin enlace" en el dashboard.
 5. El simulador genera cada 3–6 min un evento de turbiedad alta (~40 s) para mostrar la alarma sin tocar nada.
 
 ## Despliegue con acceso público (Railway)
@@ -184,7 +185,8 @@ python manage.py runserver 0.0.0.0:8000   # y en otra terminal: python manage.py
 backend/            Django: app monitoring (modelos, listener MQTT, dashboard)
   monitoring/plant.py   ← variables de la planta y límites NCh 409
 firmware/           Sketch del ESP32 (pH real + sensores simulados)
-raspberry/          PLC simulado (Modbus TCP) + gateway Modbus ↔ MQTT + systemd
+plc/                Programa del Siemens S7-1200 (SCL para TIA Portal) + guía
+raspberry/          Gateway Modbus ↔ MQTT + PLC simulado para pruebas + systemd
 simulator/          Simulador del ESP32 para pruebas sin hardware
 mosquitto/          Configuración del broker
 ```
