@@ -20,6 +20,12 @@ archivo y es idéntico al de `raspberry/plc_simulado.py`.
 
 ## 1. Configuración del dispositivo
 
+**Nuestro PLC:** CPU 1214C DC/DC/DC, referencia **6ES7 214-1AG31-0XB0**,
+**firmware V3.0**. Al agregarlo en TIA elige esa referencia exacta, con la
+versión V3.0. Si no tienes claro el firmware, usa "CPU 1200 sin especificar"
+y luego **Determinar** con el PLC conectado.
+
+
 1. **Configuración de dispositivos** → CPU → **Interfaz PROFINET** →
    Direcciones Ethernet: IP **192.168.0.1**, máscara **255.255.255.0**.
 2. Tu PC con TIA Portal debe estar en la misma red (ej. 192.168.0.20) para
@@ -59,30 +65,28 @@ mandas.
 
 ## 4. OB1: servidor Modbus TCP (MB_SERVER)
 
-1. Abre **Main [OB1]** (KOP/FUP).
-2. Instrucciones → **Comunicación** → **Otros** → **MODBUS TCP** →
-   arrastra **MB_SERVER** a una red y acepta el DB de instancia (`MB_SERVER_DB`).
-3. Parámetros:
+1. Revisa el **número** del DB `ModbusData`: aparece como `ModbusData [DB1]`
+   o similar en *Bloques de programa*.
+2. Abre **Main [OB1]** (KOP).
+3. Instrucciones → **Comunicación** → **Otros** → **MODBUS TCP** →
+   arrastra **MB_SERVER** a la red 1 y acepta el DB de instancia.
+4. Con firmware V3.0, el MB_SERVER es la versión con entrada `IP_PORT`. Complétala así:
 
-   | Parámetro | Valor |
+   | Entrada | Valor |
    |---|---|
    | `DISCONNECT` | `FALSE` |
-   | `MB_HOLD_REG` | `"ModbusData".HR` |
-   | `CONNECT` | lo crea el paso 4 |
+   | `IP_PORT` | `502` |
+   | `MB_HOLD_REG` | `P#DB1.DBX0.0 WORD 30` (cambia el `1` por el número de tu DB) |
 
-4. Selecciona el bloque → ventana **Propiedades** → **Configuración** →
-   **Parámetros de conexión**:
-   - Interlocutor: **Sin especificar**.
-   - Datos de conexión: **<nuevo>**. TIA crea un DB `TCON_IP_v4` y lo conecta a `CONNECT`.
-   - Tipo: **TCP**, ID de conexión: **1**.
-   - Puerto local: **502**.
-   - Establecimiento activo: del lado del **interlocutor**, no del PLC.
-5. Opcional: conecta `ERROR` y `STATUS` a marcas (ej. `%M10.0`, `%MW12`) para diagnosticar.
+   Si TIA acepta `"ModbusData".HR` directamente en `MB_HOLD_REG`, también
+   sirve; si lo marca en rojo, usa el puntero `P#...` de la tabla.
+5. Opcional: conecta `ERROR` a `%M10.0` y `STATUS` a `%MW12` para diagnosticar.
 
-> **Versiones antiguas de la instrucción:** si tu MB_SERVER muestra el
-> parámetro `IP_PORT` en vez de `CONNECT` (V4 o anterior), pon `IP_PORT := 502`
-> y `MB_HOLD_REG := P#DB<n>.DBX0.0 WORD 30`, donde `<n>` es el número del DB
-> `ModbusData`.
+> **Si tu MB_SERVER trae `CONNECT` en vez de `IP_PORT`** (CPU con firmware
+> V4.x): `MB_HOLD_REG := "ModbusData".HR`. Luego, en Propiedades →
+> Configuración → Parámetros de conexión, elige interlocutor **No
+> especificado**, datos de conexión **<nuevo>**, TCP, ID 1, puerto local
+> **502** y establecimiento activo del lado del interlocutor.
 
 `ModbusData` **debe quedar con acceso no optimizado**. El archivo ya lo crea
 así; puedes revisarlo en Propiedades del DB → Atributos.
