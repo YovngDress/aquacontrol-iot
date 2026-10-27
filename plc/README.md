@@ -41,7 +41,7 @@ mandas.
 ## 3. OB30: la lógica cada 500 ms
 
 1. **Agregar nuevo bloque** → **Bloque de organización** → **Cyclic interrupt**
-   → tiempo de ciclo **500000 µs** (500 ms). Lenguaje: **SCL**.
+   → tiempo de ciclo **500 ms**. Lenguaje: **SCL**.
 2. Escribe en el OB30:
 
    ```pascal
