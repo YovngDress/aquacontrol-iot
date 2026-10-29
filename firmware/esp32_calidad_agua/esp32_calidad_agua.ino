@@ -8,7 +8,7 @@
 //   <prefijo>/<slug>/oxigeno_disuelto   mg/L   (simulado)
 // Payload: {"value": 7.21, "timestamp": "...", "token": "<DEVICE_TOKEN>"}
 //
-// Además escucha al PLC (vía gateway de la Raspberry Pi):
+// Además escucha al PLC simulado (Node-RED en la Raspberry Pi):
 //   <prefijo>/<plc>/alarma              -> enciende ALARM_PIN
 //   <prefijo>/<plc>/dosificador_cloro   -> el cloro simulado converge a dosificador * 0.02 mg/L
 //
@@ -109,7 +109,7 @@ void publishTelemetry(const char* variable, float value) {
   Serial.println(payload);
 }
 
-// Mensajes del PLC (telemetría que publica el gateway de la Raspberry Pi)
+// Mensajes del PLC (telemetría que publica Node-RED en la Raspberry Pi)
 void handleMessage(char* topic, byte* payload, unsigned int length) {
   StaticJsonDocument<192> doc;
   if (deserializeJson(doc, payload, length)) {

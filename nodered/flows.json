@@ -1,0 +1,960 @@
+[
+  {
+    "id": "tab_plc",
+    "type": "tab",
+    "label": "PLC simulado (planta de agua)",
+    "disabled": false,
+    "info": "PLC simulado de la planta de agua potable + gateway hacia la plataforma Django (MQTT) + HMI en Dashboard 2.0 (/dashboard/plc).\n\nConfigura los tokens en las **variables de entorno de esta pestaña** (doble clic en la pestaña).",
+    "env": [
+      {
+        "name": "PREFIX",
+        "value": "planta",
+        "type": "str"
+      },
+      {
+        "name": "PLC_SLUG",
+        "value": "plc-planta-01",
+        "type": "str"
+      },
+      {
+        "name": "PLC_TOKEN",
+        "value": "pegar-token-del-plc",
+        "type": "str"
+      },
+      {
+        "name": "RPI_SLUG",
+        "value": "rpi-gateway-01",
+        "type": "str"
+      },
+      {
+        "name": "RPI_TOKEN",
+        "value": "pegar-token-de-la-raspberry",
+        "type": "str"
+      },
+      {
+        "name": "ESP32_SLUG",
+        "value": "esp32-calidad-01",
+        "type": "str"
+      },
+      {
+        "name": "SIM_SPEED",
+        "value": "1",
+        "type": "num"
+      }
+    ]
+  },
+  {
+    "id": "mqtt_broker",
+    "type": "mqtt-broker",
+    "name": "Mosquitto plataforma",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "nodered-plc-simulado",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthRetain": "false",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closeRetain": "false",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willRetain": "false",
+    "willPayload": "",
+    "willMsg": {},
+    "userProps": "",
+    "sessionExpiry": ""
+  },
+  {
+    "id": "ui_base",
+    "type": "ui-base",
+    "name": "AquaControl HMI",
+    "path": "/dashboard",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-notification",
+      "ui-control"
+    ],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 1,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
+    "id": "ui_theme",
+    "type": "ui-theme",
+    "name": "Agua",
+    "colors": {
+      "surface": "#0B3954",
+      "primary": "#1C8FD1",
+      "bgPage": "#EEF3F7",
+      "groupBg": "#ffffff",
+      "groupOutline": "#cfdbe5"
+    },
+    "sizes": {
+      "pagePadding": "12px",
+      "groupGap": "12px",
+      "groupBorderRadius": "8px",
+      "widgetGap": "12px",
+      "density": "default"
+    }
+  },
+  {
+    "id": "ui_page_plc",
+    "type": "ui-page",
+    "name": "HMI PLC simulado",
+    "ui": "ui_base",
+    "path": "/plc",
+    "icon": "water-pump",
+    "layout": "grid",
+    "theme": "ui_theme",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": "0",
+        "cols": "3"
+      },
+      {
+        "name": "Tablet",
+        "px": "576",
+        "cols": "6"
+      },
+      {
+        "name": "Small Desktop",
+        "px": "768",
+        "cols": "9"
+      },
+      {
+        "name": "Desktop",
+        "px": "1024",
+        "cols": "12"
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": "true",
+    "disabled": "false"
+  },
+  {
+    "id": "ui_group_estanque",
+    "type": "ui-group",
+    "name": "Estanque",
+    "page": "ui_page_plc",
+    "width": "6",
+    "height": "1",
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "ui_group_mando",
+    "type": "ui-group",
+    "name": "Mando del PLC",
+    "page": "ui_page_plc",
+    "width": "6",
+    "height": "1",
+    "order": 2,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "c_titulo",
+    "type": "comment",
+    "z": "tab_plc",
+    "name": "PLC simulado · ciclo de scan cada 500 ms",
+    "info": "Lógica de la planta: bomba por nivel (30 %/90 %), dosificador de cloro, protección de nivel bajo y alarma NCh 409. Estado en flow.plc, comandos en flow.cmd.",
+    "x": 190,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "inj_scan",
+    "type": "inject",
+    "z": "tab_plc",
+    "name": "Ciclo 0.5 s",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "0.5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 130,
+    "y": 80,
+    "wires": [
+      [
+        "fn_scan"
+      ]
+    ]
+  },
+  {
+    "id": "fn_scan",
+    "type": "function",
+    "z": "tab_plc",
+    "name": "PLC simulado (OB30)",
+    "func": "// =====================================================================\n// PLC simulado — ciclo de scan (equivale al OB30 de un S7-1200, 500 ms)\n// Estado en flow.plc, comandos en flow.cmd, calidad del agua en flow.calidad\n// =====================================================================\nconst DT = 0.5;                                        // s por ciclo\nconst SPEED = Math.max(1, Number(env.get('SIM_SPEED')) || 1);   // acelera el estanque en la demo\n\nlet s = flow.get('plc');\nlet cmd = flow.get('cmd');\nif (!s || !cmd) {                                       // primer ciclo\n    s = { nivel: 60, dosif: 40, bomba: true, valvula: true, auto: true,\n          alarma: false, caudal: 0, presion: 0, tick: 0, heartbeat: 0 };\n    cmd = { bomba: 1, valvula: 1, auto: 1, dosif: 40 };\n}\nconst q = flow.get('calidad') || { ph: 0, cloro: 0, turb: 0 };\n\n// 1) Comandos del operador\ns.auto = cmd.auto !== 0;\ns.valvula = cmd.valvula !== 0;\n\n// 2) Control automático / manual\nif (s.auto) {\n    if (s.nivel < 30) s.bomba = true;                   // histéresis 30 % / 90 %\n    else if (s.nivel > 90) s.bomba = false;\n    if (q.cloro > 0) {                                  // dosificador: cloro objetivo 0.8 mg/L\n        s.dosif = Math.max(0, Math.min(100, s.dosif + (0.8 - q.cloro) * 10 * DT));\n    }\n    cmd.bomba = s.bomba ? 1 : 0;                        // transferencia sin salto a manual\n    cmd.dosif = Math.round(s.dosif);\n} else {\n    s.bomba = cmd.bomba !== 0;\n    s.dosif = Math.max(0, Math.min(100, cmd.dosif));\n}\n\n// 3) Protección: nivel muy bajo cierra la válvula\nif (s.nivel < 5) { s.valvula = false; cmd.valvula = 0; }\n\n// 4) Simulación del estanque de 2000 L\ns.tick = (s.tick + 1) % 30000;\nconst demanda = 80 + 8 * Math.sin(s.tick * 0.05);      // L/min\nconst entrada = s.bomba ? 150 : 0;                      // L/min de la bomba\nconst salida = (s.valvula && s.nivel > 0) ? demanda : 0;\ns.nivel += (entrada - salida) * (DT * SPEED / 60) / 2000 * 100;\ns.nivel = Math.max(0, Math.min(100, s.nivel));\ns.caudal = salida;\ns.presion = Math.max(0, 0.6 + s.nivel * 0.02 + (s.bomba ? 0.8 : 0) - (s.valvula ? 0.3 : 0));\n\n// 5) Alarma: nivel extremo o calidad fuera de NCh 409\nlet alarma = s.nivel < 10 || s.nivel > 97;\nif (q.ph > 0 && (q.ph < 6.5 || q.ph > 8.5)) alarma = true;\nif (q.cloro > 0 && (q.cloro < 0.2 || q.cloro > 2)) alarma = true;\nif (q.turb > 2) alarma = true;\ns.alarma = alarma;\n\ns.heartbeat = (s.heartbeat + 1) % 32000;\nflow.set('plc', s);\nflow.set('cmd', cmd);\n\nnode.status({ fill: alarma ? 'red' : 'green', shape: 'dot',\n              text: `nivel ${s.nivel.toFixed(1)} % · bomba ${s.bomba ? 'ON' : 'OFF'} · ${s.auto ? 'AUTO' : 'MANUAL'}${alarma ? ' · ALARMA' : ''}` });\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 340,
+    "y": 80,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "c_pub",
+    "type": "comment",
+    "z": "tab_plc",
+    "name": "Gateway → plataforma (MQTT) y HMI",
+    "info": "",
+    "x": 170,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "inj_pub",
+    "type": "inject",
+    "z": "tab_plc",
+    "name": "Cada 2 s",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 120,
+    "y": 180,
+    "wires": [
+      [
+        "fn_publish"
+      ]
+    ]
+  },
+  {
+    "id": "fn_publish",
+    "type": "function",
+    "z": "tab_plc",
+    "name": "Publicar estado PLC",
+    "func": "// =====================================================================\n// Publica el estado del PLC a la plataforma (contrato MQTT del README):\n//   <PREFIX>/<PLC_SLUG>/<variable>  {\"value\", \"timestamp\", \"token\"}\n// Envía solo si cambió o cada 10 s (o de inmediato tras un comando).\n// Salida 1 -> MQTT · Salida 2 -> HMI\n// =====================================================================\nconst s = flow.get('plc');\nif (!s) return null;\n\nconst prefix = env.get('PREFIX') || 'planta';\nconst slug = env.get('PLC_SLUG') || 'plc-planta-01';\nconst token = env.get('PLC_TOKEN') || '';\nconst ts = new Date().toISOString();\nconst r = (v, d) => Math.round(v * 10 ** d) / 10 ** d;\n\nconst values = {\n    nivel_estanque: r(s.nivel, 1),\n    caudal: r(s.caudal, 1),\n    presion: r(s.presion, 2),\n    dosificador_cloro: Math.round(s.dosif),\n    bomba: s.bomba ? 1 : 0,\n    valvula: s.valvula ? 1 : 0,\n    modo_auto: s.auto ? 1 : 0,\n    alarma: s.alarma ? 1 : 0,\n};\n\nconst last = context.get('last') || {};\nconst lastTime = context.get('lastTime') || {};\nconst now = Date.now();\nconst out = [];\nfor (const [variable, value] of Object.entries(values)) {\n    const due = !lastTime[variable] || now - lastTime[variable] >= 10000;\n    if (msg.force || due || last[variable] !== value) {\n        out.push({ topic: `${prefix}/${slug}/${variable}`, payload: { value, timestamp: ts, token } });\n        last[variable] = value;\n        lastTime[variable] = now;\n    }\n}\ncontext.set('last', last);\ncontext.set('lastTime', lastTime);\nreturn [out, { payload: values }];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 330,
+    "y": 200,
+    "wires": [
+      [
+        "mqtt_out"
+      ],
+      [
+        "fn_hmi"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_out",
+    "type": "mqtt out",
+    "z": "tab_plc",
+    "name": "→ plataforma",
+    "topic": "",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt_broker",
+    "x": 580,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "fn_hmi",
+    "type": "function",
+    "z": "tab_plc",
+    "name": "Estado → HMI",
+    "func": "// Reparte el estado del PLC a los widgets del HMI (Dashboard 2.0)\nconst v = msg.payload;\nconst q = flow.get('calidad') || {};\nconst manual = v.modo_auto === 0;\nconst fmt = (x, d) => (x > 0 ? x.toFixed(d) : '--');\nreturn [\n    { payload: v.nivel_estanque },                                   // gauge nivel\n    { payload: v.caudal },                                           // gauge caudal\n    { payload: v.presion },                                          // gauge presión\n    { topic: 'Nivel %', payload: v.nivel_estanque },                 // chart\n    { payload: v.modo_auto === 1 },                                  // switch modo auto\n    { payload: v.bomba === 1, enabled: manual },                     // switch bomba (solo en manual)\n    { payload: v.valvula === 1 },                                    // switch válvula\n    { payload: v.dosificador_cloro, enabled: manual },               // slider dosificador (solo en manual)\n    { payload: v.alarma ? '⚠ ALARMA ACTIVA' : 'Sin alarmas' },       // texto alarma\n    { payload: `pH ${fmt(q.ph || 0, 2)} · Cloro ${fmt(q.cloro || 0, 2)} mg/L · Turbiedad ${fmt(q.turb || 0, 2)} NTU` },\n];\n",
+    "outputs": 10,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 560,
+    "y": 300,
+    "wires": [
+      [
+        "g_nivel"
+      ],
+      [
+        "g_caudal"
+      ],
+      [
+        "g_presion"
+      ],
+      [
+        "ch_nivel"
+      ],
+      [
+        "sw_auto"
+      ],
+      [
+        "sw_bomba"
+      ],
+      [
+        "sw_valvula"
+      ],
+      [
+        "sl_dosif"
+      ],
+      [
+        "tx_alarma"
+      ],
+      [
+        "tx_calidad"
+      ]
+    ]
+  },
+  {
+    "id": "g_nivel",
+    "type": "ui-gauge",
+    "z": "tab_plc",
+    "name": "Nivel",
+    "group": "ui_group_estanque",
+    "order": 1,
+    "value": "payload",
+    "valueType": "msg",
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "Nivel del estanque",
+    "alwaysShowTitle": false,
+    "floatingTitlePosition": "top-left",
+    "units": "%",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#d03b3b"
+      },
+      {
+        "from": "10",
+        "color": "#e5a50a"
+      },
+      {
+        "from": "30",
+        "color": "#0ca30c"
+      },
+      {
+        "from": "90",
+        "color": "#e5a50a"
+      },
+      {
+        "from": "97",
+        "color": "#d03b3b"
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 800,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "g_caudal",
+    "type": "ui-gauge",
+    "z": "tab_plc",
+    "name": "Caudal",
+    "group": "ui_group_estanque",
+    "order": 2,
+    "value": "payload",
+    "valueType": "msg",
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "Caudal de salida",
+    "alwaysShowTitle": false,
+    "floatingTitlePosition": "top-left",
+    "units": "L/min",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#1C8FD1"
+      }
+    ],
+    "min": 0,
+    "max": 160,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 800,
+    "y": 260,
+    "wires": []
+  },
+  {
+    "id": "g_presion",
+    "type": "ui-gauge",
+    "z": "tab_plc",
+    "name": "Presión",
+    "group": "ui_group_estanque",
+    "order": 3,
+    "value": "payload",
+    "valueType": "msg",
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "Presión de red",
+    "alwaysShowTitle": false,
+    "floatingTitlePosition": "top-left",
+    "units": "bar",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#e5a50a"
+      },
+      {
+        "from": "1.5",
+        "color": "#0ca30c"
+      },
+      {
+        "from": "4",
+        "color": "#d03b3b"
+      }
+    ],
+    "min": 0,
+    "max": 4,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 800,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "ch_nivel",
+    "type": "ui-chart",
+    "z": "tab_plc",
+    "group": "ui_group_estanque",
+    "name": "Nivel en el tiempo",
+    "label": "Nivel en el tiempo",
+    "order": 4,
+    "chartType": "line",
+    "category": "topic",
+    "categoryType": "msg",
+    "xAxisLabel": "",
+    "xAxisProperty": "",
+    "xAxisPropertyType": "timestamp",
+    "xAxisType": "time",
+    "xAxisFormat": "",
+    "xAxisFormatType": "auto",
+    "xmin": "",
+    "xmax": "",
+    "yAxisLabel": "%",
+    "yAxisProperty": "payload",
+    "yAxisPropertyType": "msg",
+    "ymin": "0",
+    "ymax": "100",
+    "action": "append",
+    "stackSeries": false,
+    "pointShape": "false",
+    "pointRadius": 4,
+    "showLegend": false,
+    "removeOlder": "15",
+    "removeOlderUnit": "60",
+    "removeOlderPoints": "",
+    "colors": [
+      "#1C8FD1",
+      "#d03b3b",
+      "#ff7f0e",
+      "#2ca02c",
+      "#a347e1",
+      "#d62728",
+      "#ff9896",
+      "#9467bd",
+      "#c5b0d5"
+    ],
+    "textColor": [
+      "#666666"
+    ],
+    "textColorDefault": true,
+    "gridColor": [
+      "#e5e5e5"
+    ],
+    "gridColorDefault": true,
+    "width": 6,
+    "height": 4,
+    "className": "",
+    "interpolation": "linear",
+    "x": 810,
+    "y": 340,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "sw_auto",
+    "type": "ui-switch",
+    "z": "tab_plc",
+    "name": "Modo automático",
+    "label": "Modo automático",
+    "group": "ui_group_mando",
+    "order": 1,
+    "width": 0,
+    "height": 0,
+    "passthru": false,
+    "decouple": true,
+    "topic": "modo_auto",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": "",
+    "x": 820,
+    "y": 380,
+    "wires": [
+      [
+        "fn_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "sw_bomba",
+    "type": "ui-switch",
+    "z": "tab_plc",
+    "name": "Bomba (manual)",
+    "label": "Bomba (manual)",
+    "group": "ui_group_mando",
+    "order": 2,
+    "width": 0,
+    "height": 0,
+    "passthru": false,
+    "decouple": true,
+    "topic": "bomba",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": "",
+    "x": 820,
+    "y": 420,
+    "wires": [
+      [
+        "fn_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "sw_valvula",
+    "type": "ui-switch",
+    "z": "tab_plc",
+    "name": "Válvula de salida",
+    "label": "Válvula de salida",
+    "group": "ui_group_mando",
+    "order": 3,
+    "width": 0,
+    "height": 0,
+    "passthru": false,
+    "decouple": true,
+    "topic": "valvula",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": "",
+    "x": 820,
+    "y": 460,
+    "wires": [
+      [
+        "fn_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "sl_dosif",
+    "type": "ui-slider",
+    "z": "tab_plc",
+    "group": "ui_group_mando",
+    "name": "Dosificador",
+    "label": "Dosificador de cloro (%)",
+    "tooltip": "",
+    "order": 4,
+    "width": 0,
+    "height": 0,
+    "passthru": false,
+    "outs": "end",
+    "topic": "dosificador_cloro",
+    "topicType": "str",
+    "thumbLabel": "always",
+    "showTicks": "false",
+    "min": 0,
+    "max": 100,
+    "step": 5,
+    "className": "",
+    "iconPrepend": "",
+    "iconAppend": "",
+    "color": "",
+    "colorTrack": "",
+    "colorThumb": "",
+    "showTextField": false,
+    "x": 810,
+    "y": 500,
+    "wires": [
+      [
+        "fn_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "tx_alarma",
+    "type": "ui-text",
+    "z": "tab_plc",
+    "group": "ui_group_mando",
+    "order": 5,
+    "width": 0,
+    "height": 0,
+    "name": "Alarma",
+    "label": "Alarma",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 18,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 790,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "tx_calidad",
+    "type": "ui-text",
+    "z": "tab_plc",
+    "group": "ui_group_mando",
+    "order": 6,
+    "width": 0,
+    "height": 0,
+    "name": "Calidad (ESP32)",
+    "label": "Calidad (ESP32)",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 14,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 800,
+    "y": 580,
+    "wires": []
+  },
+  {
+    "id": "c_cmd",
+    "type": "comment",
+    "z": "tab_plc",
+    "name": "Comandos: plataforma Django (/set) y HMI",
+    "info": "",
+    "x": 190,
+    "y": 420,
+    "wires": []
+  },
+  {
+    "id": "mqtt_in_set",
+    "type": "mqtt in",
+    "z": "tab_plc",
+    "name": "← comandos plataforma",
+    "topic": "planta/+/+/set",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "mqtt_broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 460,
+    "wires": [
+      [
+        "fn_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "fn_cmd",
+    "type": "function",
+    "z": "tab_plc",
+    "name": "Aplicar comando",
+    "func": "// =====================================================================\n// Comandos al PLC simulado. Llegan de:\n//   - la plataforma Django:  <PREFIX>/<PLC_SLUG>/<variable>/set  {\"value\", \"token\"}\n//   - el HMI de Node-RED:    msg.topic = variable, msg.payload = valor\n// En modo automático el PLC manda sobre bomba y dosificador (se ignoran).\n// =====================================================================\nconst cmd = flow.get('cmd') || { bomba: 1, valvula: 1, auto: 1, dosif: 40 };\nlet variable, value;\n\nif (typeof msg.topic === 'string' && msg.topic.endsWith('/set')) {\n    const parts = msg.topic.split('/');\n    if (parts.length !== 4 || parts[1] !== (env.get('PLC_SLUG') || 'plc-planta-01')) return null;\n    const p = msg.payload || {};\n    if (String(p.token || '') !== String(env.get('PLC_TOKEN') || '')) {\n        node.warn(`Comando rechazado (token inválido): ${msg.topic}`);\n        return null;\n    }\n    variable = parts[2];\n    value = Number(p.value);\n} else {\n    variable = msg.topic;\n    value = msg.payload === true ? 1 : msg.payload === false ? 0 : Number(msg.payload);\n}\nif (Number.isNaN(value)) return null;\n\nswitch (variable) {\n    case 'bomba':             cmd.bomba = value >= 0.5 ? 1 : 0; break;\n    case 'valvula':           cmd.valvula = value >= 0.5 ? 1 : 0; break;\n    case 'modo_auto':         cmd.auto = value >= 0.5 ? 1 : 0; break;\n    case 'dosificador_cloro': cmd.dosif = Math.max(0, Math.min(100, Math.round(value))); break;\n    default:\n        node.warn(`Variable no escribible: ${variable}`);\n        return null;\n}\nflow.set('cmd', cmd);\nnode.status({ fill: 'blue', shape: 'ring', text: `${variable} = ${value}` });\nreturn { force: true };          // tras un ciclo de scan se publica el estado real\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1060,
+    "y": 460,
+    "wires": [
+      [
+        "dl_force"
+      ]
+    ]
+  },
+  {
+    "id": "dl_force",
+    "type": "delay",
+    "z": "tab_plc",
+    "name": "esperar 1 ciclo",
+    "pauseType": "delay",
+    "timeout": "700",
+    "timeoutUnits": "milliseconds",
+    "rate": "1",
+    "nbRateUnits": "1",
+    "rateUnits": "second",
+    "randomFirst": "1",
+    "randomLast": "5",
+    "randomUnits": "seconds",
+    "drop": false,
+    "allowrate": false,
+    "outputs": 1,
+    "x": 1250,
+    "y": 460,
+    "wires": [
+      [
+        "fn_publish"
+      ]
+    ]
+  },
+  {
+    "id": "c_cal",
+    "type": "comment",
+    "z": "tab_plc",
+    "name": "Calidad del agua desde el ESP32 → PLC",
+    "info": "",
+    "x": 200,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "mqtt_in_esp",
+    "type": "mqtt in",
+    "z": "tab_plc",
+    "name": "← ESP32 (pH, cloro, turbiedad)",
+    "topic": "planta/+/+",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "mqtt_broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 180,
+    "y": 580,
+    "wires": [
+      [
+        "fn_calidad"
+      ]
+    ]
+  },
+  {
+    "id": "fn_calidad",
+    "type": "function",
+    "z": "tab_plc",
+    "name": "Calidad → PLC",
+    "func": "// Recibe del ESP32 pH, cloro libre y turbiedad y se los pasa al PLC (flow.calidad)\nconst parts = (msg.topic || '').split('/');\nif (parts.length !== 3 || parts[1] !== (env.get('ESP32_SLUG') || 'esp32-calidad-01')) return null;\nconst key = { ph: 'ph', cloro_libre: 'cloro', turbidez: 'turb' }[parts[2]];\nif (!key) return null;\nconst value = Number(msg.payload && msg.payload.value);\nif (Number.isNaN(value)) return null;\nconst q = flow.get('calidad') || { ph: 0, cloro: 0, turb: 0 };\nq[key] = value;\nflow.set('calidad', q);\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 580,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "c_rpi",
+    "type": "comment",
+    "z": "tab_plc",
+    "name": "Telemetría de la Raspberry Pi",
+    "info": "",
+    "x": 170,
+    "y": 640,
+    "wires": []
+  },
+  {
+    "id": "inj_rpi",
+    "type": "inject",
+    "z": "tab_plc",
+    "name": "Cada 5 s",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 120,
+    "y": 680,
+    "wires": [
+      [
+        "ex_rpi"
+      ]
+    ]
+  },
+  {
+    "id": "ex_rpi",
+    "type": "exec",
+    "z": "tab_plc",
+    "name": "leer CPU",
+    "command": "cat /sys/class/thermal/thermal_zone0/temp; grep '^cpu ' /proc/stat",
+    "addpay": "",
+    "append": "",
+    "useSpawn": "false",
+    "timer": "3",
+    "winHide": true,
+    "oldrc": false,
+    "x": 290,
+    "y": 680,
+    "wires": [
+      [
+        "fn_rpi"
+      ],
+      [],
+      []
+    ]
+  },
+  {
+    "id": "fn_rpi",
+    "type": "function",
+    "z": "tab_plc",
+    "name": "Telemetría Raspberry",
+    "func": "// =====================================================================\n// Telemetría de la Raspberry Pi (dispositivo RPI_SLUG):\n//   cpu_temp (°C), cpu_uso (%), plc_conectado (PLC simulado ejecutándose)\n// Si Node-RED corre en un PC sin estos archivos (ej. Windows), se simulan.\n// =====================================================================\nconst lines = String(msg.payload || '').trim().split('\\n');\nlet temp = parseInt(lines[0], 10) / 1000;\nlet uso = null;\nconst cpu = lines.find(l => l.startsWith('cpu '));\nif (cpu) {\n    const n = cpu.trim().split(/\\s+/).slice(1).map(Number);\n    const idle = n[3] + (n[4] || 0);\n    const total = n.reduce((a, b) => a + b, 0);\n    const prev = context.get('prev');\n    context.set('prev', { idle, total });\n    if (prev && total > prev.total) uso = 100 * (1 - (idle - prev.idle) / (total - prev.total));\n}\nif (Number.isNaN(temp)) temp = 45 + Math.random() * 4 - 2;\nif (uso === null) uso = 10 + Math.random() * 10;\n\nconst s = flow.get('plc');\nconst hb = s ? s.heartbeat : null;\nconst vivo = hb !== null && hb !== context.get('hb');\ncontext.set('hb', hb);\n\nconst prefix = env.get('PREFIX') || 'planta';\nconst slug = env.get('RPI_SLUG') || 'rpi-gateway-01';\nconst token = env.get('RPI_TOKEN') || '';\nconst ts = new Date().toISOString();\nconst pub = (variable, value) => ({ topic: `${prefix}/${slug}/${variable}`, payload: { value, timestamp: ts, token } });\nreturn [[\n    pub('cpu_temp', Math.round(temp * 10) / 10),\n    pub('cpu_uso', Math.round(uso * 10) / 10),\n    pub('plc_conectado', vivo ? 1 : 0),\n]];\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 480,
+    "y": 680,
+    "wires": [
+      [
+        "mqtt_out_rpi"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_out_rpi",
+    "type": "mqtt out",
+    "z": "tab_plc",
+    "name": "→ plataforma",
+    "topic": "",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt_broker",
+    "x": 690,
+    "y": 680,
+    "wires": []
+  }
+]

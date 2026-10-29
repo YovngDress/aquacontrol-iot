@@ -55,7 +55,7 @@ VARIABLES = {
         "widget": "line_chart",
         "ref": (5.0, None),
     },
-    # --- Proceso (PLC, vía gateway Raspberry Pi) ---
+    # --- Proceso (PLC simulado en Node-RED, Raspberry Pi) ---
     "nivel_estanque": {
         "label": "Nivel del estanque",
         "unit": "%",
@@ -78,10 +78,10 @@ VARIABLES = {
         "step": 5,
     },
     "alarma": {"label": "Alarma de planta", "unit": "", "widget": "led", "threshold": 1},
-    # --- Raspberry Pi (gateway) ---
+    # --- Raspberry Pi (Node-RED) ---
     "cpu_temp": {"label": "Temperatura CPU", "unit": "°C", "widget": "numeric", "ref": (None, 70.0)},
     "cpu_uso": {"label": "Uso de CPU", "unit": "%", "widget": "meter", "min": 0, "max": 100},
-    "plc_conectado": {"label": "Enlace Modbus con PLC", "unit": "", "widget": "led", "threshold": 1},
+    "plc_conectado": {"label": "PLC simulado activo", "unit": "", "widget": "led", "threshold": 1},
 }
 
 # Orden en que se muestran las variables reguladas en el panel de cumplimiento.

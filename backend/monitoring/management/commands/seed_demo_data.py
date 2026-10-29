@@ -8,12 +8,12 @@ Crea (o reutiliza, si ya existen) la instalación "Planta de tratamiento
 Sector Norte" y sus tres dispositivos:
 
     esp32-calidad-01   ESP32         pH, turbiedad, cloro libre, temperatura, oxígeno disuelto
-    plc-planta-01      PLC           nivel, caudal, presión, bomba, válvula, dosificador, alarma, modo auto
-    rpi-gateway-01     Raspberry Pi  temperatura y uso de CPU, enlace Modbus con el PLC
+    plc-planta-01      PLC (simulado en Node-RED)  nivel, caudal, presión, bomba, válvula, dosificador, alarma, modo auto
+    rpi-gateway-01     Raspberry Pi (Node-RED)     temperatura y uso de CPU, PLC simulado activo
 
 Genera una serie histórica de lecturas por sensor para que el dashboard no
 se vea vacío, y al final imprime los tokens listos para pegar en el .env
-(simulador / gateway de la Raspberry Pi) y en el config.h del ESP32.
+(Node-RED) y en el config.h del ESP32.
 Se puede re-correr sin duplicar nada.
 """
 import math
@@ -46,8 +46,8 @@ DEVICES = {
         },
     ),
     "plc-planta-01": (
-        "PLC · Control de planta",
-        "PLC",
+        "PLC simulado · Control de planta",
+        "PLC (Node-RED)",
         "Tablero de control",
         {
             "nivel_estanque": (60.0, 25.0, 1.0),
@@ -61,7 +61,7 @@ DEVICES = {
         },
     ),
     "rpi-gateway-01": (
-        "Raspberry Pi · Gateway",
+        "Raspberry Pi · Node-RED",
         "Raspberry Pi",
         "Tablero de control",
         {
@@ -162,9 +162,12 @@ class Command(BaseCommand):
                     readings_created += len(batch)
 
         self.stdout.write(self.style.SUCCESS(f"Listo: planta «{PLANT_NAME}», {readings_created} lecturas generadas."))
-        self.stdout.write("\nTokens de los dispositivos (cópialos al .env / config.h):\n")
+        self.stdout.write("\nTokens de los dispositivos:\n")
         tokens = {d.slug: d.auth_token for d in Device.objects.filter(slug__in=DEVICES.keys())}
-        self.stdout.write(f"SIMULATOR_DEVICE_TOKENS=esp32-calidad-01:{tokens['esp32-calidad-01']}")
-        self.stdout.write(f"PLC_DEVICE_TOKEN={tokens['plc-planta-01']}")
-        self.stdout.write(f"RPI_DEVICE_TOKEN={tokens['rpi-gateway-01']}")
-        self.stdout.write(f'#define DEVICE_TOKEN "{tokens["esp32-calidad-01"]}"   // firmware ESP32')
+        self.stdout.write("  Node-RED (variables de entorno de la pestaña «PLC simulado»):")
+        self.stdout.write(f"    PLC_TOKEN = {tokens['plc-planta-01']}")
+        self.stdout.write(f"    RPI_TOKEN = {tokens['rpi-gateway-01']}")
+        self.stdout.write("  Firmware ESP32 (config.h):")
+        self.stdout.write(f'    #define DEVICE_TOKEN "{tokens["esp32-calidad-01"]}"')
+        self.stdout.write("  Simulador del ESP32 (.env):")
+        self.stdout.write(f"    SIMULATOR_DEVICE_TOKENS=esp32-calidad-01:{tokens['esp32-calidad-01']}")

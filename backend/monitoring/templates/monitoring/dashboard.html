@@ -5,7 +5,7 @@
 <div class="page-header">
   <div>
     <h1>Planta de agua potable</h1>
-    <p class="page-subtitle">ESP32 (calidad de agua) · PLC (proceso) · Raspberry Pi (gateway Modbus ↔ MQTT)</p>
+    <p class="page-subtitle">ESP32 (calidad de agua) · PLC simulado en Node-RED (proceso) · Raspberry Pi</p>
   </div>
   <a class="btn" href="{% url 'monitoring:device-create' %}">+ Agregar dispositivo</a>
 </div>
@@ -41,7 +41,7 @@
       <h2>Proceso</h2>
       <div class="process-flags">
         <span class="chip" data-flag="modo_auto" data-on="Modo automático" data-off="Modo manual">modo --</span>
-        <span class="chip" data-flag="plc_conectado" data-on="PLC enlazado" data-off="PLC sin enlace">PLC --</span>
+        <span class="chip" data-flag="plc_conectado" data-on="PLC activo" data-off="PLC detenido">PLC --</span>
         <span class="chip" data-flag="alarma" data-on="ALARMA" data-off="Sin alarmas" data-alert="1">alarma --</span>
       </div>
     </header>
