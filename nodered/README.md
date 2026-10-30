@@ -115,3 +115,28 @@ Edita las funciones directamente en el editor de Node-RED (doble clic en
 ```bash
 python nodered/build_flow.py
 ```
+
+## Inicio de sesión (usuario y contraseña)
+
+Node-RED trae login propio, que se configura en `~/.node-red/settings.js`:
+
+- `adminAuth` protege el **editor** (`:1880`) con una pantalla de inicio de sesión.
+- `httpNodeAuth` protege el **HMI** (`:1880/dashboard`) con usuario y contraseña.
+
+1. Genera el hash de la contraseña (pide la clave y devuelve un texto que empieza con `$2b$`):
+   ```bash
+   node-red admin hash-pw
+   ```
+2. Edita `nano ~/.node-red/settings.js`, busca `adminAuth` (viene comentado con `//`), descoméntalo y déjalo así:
+   ```js
+   adminAuth: {
+       type: "credentials",
+       users: [{
+           username: "admin",
+           password: "$2b$08$...hash...",
+           permissions: "*"
+       }]
+   },
+   httpNodeAuth: { user: "operador", pass: "$2b$08$...hash..." },
+   ```
+3. Reinicia Node-RED: `sudo systemctl restart nodered`.
